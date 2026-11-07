@@ -1,6 +1,6 @@
 @startuml seq-us-05-v2
 title Hủy bảng nháp (US-PAY-05) – v2
-' Phiên bản: v2 | Đầu vào: sys-us-05-v2.md; user-review-us-05.md; ai-review-us-05-v1.md | Prompt: P-05
+' Phiên bản: v2 | Đầu vào: sys-us-05-v2.md; user-review-us-05.md; ai-review-us-05-v1.md | Prompt: P-14
 ' Mục đích: Đặc tả tuần tự luồng hủy bảng thanh toán từ trạng thái Draft sang Cancelled (Bản sau review v2)
 ' Phạm vi: US-PAY-05; TA-SPEC §1, §3, §4.5, §6; TA-PDF tr.1, tr.2, tr.3
 ' Quy tắc liên quan: NFR-PAY-01 (Audit log bắt buộc), PAY-01 (ràng buộc kỳ khi hủy), PAY-05 (bất biến)

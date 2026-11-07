@@ -2,7 +2,7 @@
 
 > Phiên bản: v2 · Ngày: 07/11/2026 · Người phụ trách: BA Team  
 > Đầu vào: `sys-us-05-v1.md`; `user-review-us-05.md`; `ai-review-us-05-v1.md`; TA-SPEC §1, §2, §3, §4.5, §5 (PAY-01, PAY-05), §6 (NFR-PAY-01, NFR-PAY-02); TA-PDF tr.1, tr.2, tr.3; `sources.md`  
-> AI: Gemini 3.8 Flash · Prompt: P-05 trong docs/workflow/prompt-log.md  
+> AI: Gemini 3.8 Flash · Prompt: P-14 trong docs/workflow/prompt-log.md  
 > Trạng thái: Bản sau review – BA Pending Review / Design Pending Approval  
 
 ---

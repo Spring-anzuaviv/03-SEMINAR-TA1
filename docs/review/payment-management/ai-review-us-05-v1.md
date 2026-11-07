@@ -3,7 +3,7 @@
 > Phiên bản được review: v1 · Ngày review: 07/11/2026 · Reviewer: AI Reviewer (Độc lập)  
 > Đối tượng review: US-PAY-05 (Hủy bảng nháp) trong `docs/analysis/payment-management/v1/` và `docs/design/payment-management/v1/`  
 > Nguồn đối chiếu nghiệp vụ: TA-SPEC (§1–6), TA-PDF (tr.1–3), sources.md  
-> AI: Gemini 3.8 Flash · Prompt: P-04 trong docs/workflow/prompt-log.md  
+> AI: Gemini 3.8 Flash · Prompt: P-13 trong docs/workflow/prompt-log.md  
 > Kết luận: **Chưa đủ đầu vào / Cần chỉnh sửa** (Thiếu các tài liệu thiết kế bắt buộc LLD/API/Data/Traceability; Use case và Sequence đã lập bám sát đặc tả nhưng còn phụ thuộc các OQ mở)
 
 ---

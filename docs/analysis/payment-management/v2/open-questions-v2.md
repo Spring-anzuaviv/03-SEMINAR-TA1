@@ -2,7 +2,7 @@
 
 > Phiên bản: v2 · Ngày: 07/11/2026 · Người phụ trách: BA Team / Người phụ trách duyệt  
 > Đầu vào: `open-questions-v1.md`; `user-review-us-05.md`; TA-SPEC §1–6; TA-PDF tr.1–3; `sys-us-05-v2.md`  
-> AI: Gemini 3.8 Flash · Prompt: P-07 trong docs/workflow/prompt-log.md  
+> AI: Gemini 3.8 Flash · Prompt: P-14 trong docs/workflow/prompt-log.md  
 > Trạng thái: Đã cập nhật kết quả xác nhận cho US-PAY-05 (v2)  
 
 Tài liệu này tổng hợp các điểm Mâu thuẫn / Mơ hồ / Thiếu trong đặc tả bài toán Bảng thanh toán (TA 1–2) đối với use case **US-PAY-05 (Hủy bảng nháp)**.
