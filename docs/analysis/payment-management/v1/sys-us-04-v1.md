@@ -1,8 +1,8 @@
 # Đặc tả hệ thống US-PAY-04 (v1)
 
 > Phiên bản: v1 · Ngày nhập: 07/11/2026 · Người phụ trách: Lộc
-> Đầu vào: Bộ US-PAY-04 Before Review · [TA-SPEC §4.4, §5 PAY-05, §6](../../../../requirements/payment-management/spec.md) · TA-PDF tr.2–3
-> AI: Codex · Prompt nhập bản v1: [P-02](../../../../workflow/prompt-log.md#p-02--nhập-bộ-us-pay-04-v1)
+> Đầu vào: Bộ US-PAY-04 Before Review · [TA-SPEC §4.4, §5 PAY-05, §6](../../../requirements/payment-management/spec.md) · TA-PDF tr.2–3
+> AI: Codex · Prompt nhập bản v1: [P-02](../../../workflow/prompt-log.md#p-02--nhập-bộ-us-pay-04-v1)
 > Trạng thái: Bản lần chạy đầu – Design Pending Approval
 
 ## System Spec
@@ -34,6 +34,6 @@ Các quyết định còn mở được ghi trong [Điểm cần kiểm tra lạ
 
 `PaymentAdjustmentService` kiểm tra điều kiện và điều phối giao dịch. Hai nhánh A/B biểu diễn hai thiết kế để khách hàng chọn. `AuditRepository` ghi lịch sử cho phương án được triển khai.
 
-![Sequence Diagram SYS-PAY-04 trước review, gồm phương án A và B](seq-us-04-v1.svg)
+![Sequence Diagram SYS-PAY-04 trước review, gồm phương án A và B](../../../design/payment-management/v1/diagrams/seq-us-04-v1.svg)
 
-[Nguồn PlantUML](seq-us-04-v1.puml)
+[Nguồn PlantUML](../../../design/payment-management/v1/diagrams/seq-us-04-v1.puml)
