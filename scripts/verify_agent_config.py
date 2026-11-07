@@ -27,6 +27,7 @@ DIAGRAM_RE = (r"(seq-us-0[1-5](-(" + OPS + r"))?|component|class|state-machine|e
               r"use-case|activity-(" + OPS + r"))-{v}\.(puml|svg|png)")
 REVIEW_RE = r"(ai-review|review-assessment)-\d{2}-v[12]\.md|evaluation-report\.md"
 ALWAYS_OK = (".gitkeep", "README.md")
+USE_CASE_FOLDERS = tuple(f"us-pay-{number:02}" for number in range(1, 6))
 
 
 def naming_problems():
@@ -64,8 +65,13 @@ def naming_problems():
             if parent.startswith("docs/analysis"):
                 scan(base / v, ANALYSIS_RE.format(v=v))
             else:
-                scan(base / v, DESIGN_RE.format(v=v), allowed)
+                scan(base / v, DESIGN_RE.format(v=v), allowed + USE_CASE_FOLDERS)
                 scan(base / v / "diagrams", DIAGRAM_RE.format(v=v))
+                for folder in USE_CASE_FOLDERS:
+                    number = folder[-2:]
+                    pattern = (rf"(sys-us-{number}|open-questions)-{v}\.md|"
+                               rf"seq-us-{number}(-({OPS}))?-{v}\.(puml|svg|png)")
+                    scan(base / v / folder, pattern)
     scan(ROOT / "docs/review/payment-management", REVIEW_RE)
     return problems
 

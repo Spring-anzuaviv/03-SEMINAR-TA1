@@ -47,3 +47,19 @@ Prompt nguyên văn:
     cái sau như kiến trúc hay thiết kế dữ liệu gì đó cũng nên có version luôn
     cần chia ra 2 version (tôi đã tạo folder version trước đó r)
     có thể chỉnh lại các skill nếu được
+
+### P-02 – Nhập bộ US-PAY-04 v1
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 07/11/2026 / Lộc |
+| Công cụ / model | Codex desktop / GPT-6 |
+| Vai trò / skill / version | Nhập tài liệu có sẵn / naming-versioning / v1 |
+| Nguồn đã đưa vào | Bộ US-PAY-04 Before Review của repo `03-QTKD-Seminar`, AGENTS.md, TA-SPEC §4.4, §5 PAY-05, §6 và danh mục OQ của workspace |
+| File đầu ra | [System Spec](../design/payment-management/v1/us-pay-04/sys-us-04-v1.md), [Open Questions](../design/payment-management/v1/us-pay-04/open-questions-v1.md), [PlantUML](../design/payment-management/v1/us-pay-04/seq-us-04-v1.puml) và [SVG](../design/payment-management/v1/us-pay-04/seq-us-04-v1.svg) |
+| Kiểm chứng | PlantUML 1.2025.4 `-checkonly` và `-tsvg` cho `seq-us-04-v1.puml` đều thành công. `python scripts/verify_agent_config.py` trả `RESULT: PASS (0 failed checks)`. |
+| Phần AI viết / nhóm sửa | AI nhập bản hiện có, chuẩn hóa tên file, liên kết và mã OQ, kết xuất lại SVG và bổ sung kiểm tra tên cho thư mục theo US. Chưa có chỉnh sửa của nhóm trên bản nhập. |
+
+Prompt nguyên văn
+
+    hãy tạo 1 folder của us-pay-04 bên trong v1 và bỏ những cái của tôi cần bỏ vào và sau đó push lên nhánh github để tôi PR và merge
