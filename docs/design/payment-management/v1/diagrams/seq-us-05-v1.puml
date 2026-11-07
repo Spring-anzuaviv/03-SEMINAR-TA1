@@ -1,0 +1,140 @@
+@startuml seq-us-05-v1
+title Hủy bảng nháp (US-PAY-05) – v1
+' Phiên bản: v1 | Đầu vào: sys-us-05-v1.md | Prompt: P-03
+' Mục đích: Đặc tả tuần tự luồng hủy bảng thanh toán từ trạng thái Draft sang Cancelled
+' Phạm vi: US-PAY-05; TA-SPEC §1, §3, §4.5, §6; TA-PDF tr.1, tr.2, tr.3
+' Quy tắc liên quan: NFR-PAY-01 (Audit log bắt buộc), PAY-01 (ràng buộc kỳ khi hủy), PAY-05 (bất biến)
+' OQ liên quan:
+'   - Blocked by OQ-US05-01: Quyền thực hiện hủy bảng Draft (NVKD tạo bảng / bất kỳ NVKD / KTT / GĐKD)
+'   - Blocked by OQ-US05-02: Quy định lập lại bảng thanh toán sau khi hủy cho cùng kỳ
+'   - Blocked by OQ-US05-03: Yêu cầu bắt buộc hoặc tùy chọn lý do hủy
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval
+
+autonumber
+
+actor "Actor có quyền hủy\n[Blocked by OQ-US05-01]" as User
+participant "PaymentController" as API
+participant "PaymentService" as S
+participant "PaymentRepository" as R
+participant "AuditLogService" as A
+database "Database\n(Transaction)" as DB
+
+== Khởi tạo yêu cầu hủy bảng thanh toán ==
+User -> API: POST /api/payment-sheets/{id}/cancel\n(CancelPaymentSheetRequest { reason? })\n[Blocked by OQ-US05-03]
+activate API
+
+API -> S: CancelAsync(id, request, currentUser)
+activate S
+
+== Bước 1: Tra cứu thông tin bảng thanh toán ==
+S -> R: GetByIdAsync(id)
+activate R
+R -> DB: SELECT * FROM PaymentSheets WHERE Id = id
+activate DB
+DB --> R: SheetData / null
+deactivate DB
+R --> S: paymentSheet / null
+deactivate R
+
+alt #LightPink [A1: Bảng thanh toán không tồn tại]
+    S --> API: throw NotFoundException("Không tìm thấy bảng thanh toán")
+    API --> User: 404 Not Found\n{ code: "NOT_FOUND", message: "..." }
+end
+
+== Bước 2: Kiểm tra phân quyền thực hiện ==
+note over S
+  Kiểm tra người dùng hiện tại (currentUser) có quyền hủy bảng:
+  Tùy theo kết quả xác nhận OQ-US05-01 (Creator / Assigned NVKD / Manager)
+end note
+S -> S: CheckPermission(currentUser, paymentSheet)\n[Blocked by OQ-US05-01]
+
+alt #LightPink [A2: Người dùng không có quyền hủy (Blocked by OQ-US05-01)]
+    S --> API: throw ForbiddenException("Không có quyền hủy bảng thanh toán")
+    API --> User: 403 Forbidden\n{ code: "FORBIDDEN", message: "..." }
+end
+
+== Bước 3: Kiểm tra trạng thái hiện tại của bảng thanh toán ==
+note over S
+  Kiểm tra điều kiện tiền quyết: trạng thái phải là Draft [TA-SPEC §3, §4.5]
+end note
+S -> S: ValidateStatusIsDraft(paymentSheet.Status)
+
+alt #LightPink [A3: Bảng không ở trạng thái Draft]
+    note over S: Bảng ở trạng thái PendingApproval, Approved, Rejected, hoặc Cancelled
+    S --> API: throw InvalidStateException("Chỉ được hủy bảng ở trạng thái Draft")
+    API --> User: 400 Bad Request\n{ code: "INVALID_STATE", message: "..." }
+end
+
+== Bước 4: Kiểm tra tính hợp lệ của lý do hủy ==
+S -> S: ValidateCancellationReason(request.Reason)\n[Blocked by OQ-US05-03]
+
+alt #LightPink [A4: Lý do hủy không hợp lệ / thiếu - Blocked by OQ-US05-03]
+    note over S: Áp dụng khi nghiệp vụ yêu cầu bắt buộc nhập lý do hủy
+    S --> API: throw ValidationException("Lý do hủy là bắt buộc và không được để trống")
+    API --> User: 400 Bad Request\n{ code: "INVALID_REASON", message: "..." }
+end
+
+== Bước 5, 6, 7: Xử lý giao dịch chuyển trạng thái và ghi Audit Log ==
+group Transaction [Giao dịch cơ sở dữ liệu]
+    S -> DB: BeginTransactionAsync()
+    activate DB
+    
+    note over S
+      Chuyển trạng thái: Draft -> Cancelled [TA-SPEC §3, §4.5]
+      Tăng Concurrency Version để kiểm soát cập nhật đồng thời
+    end note
+    S -> S: paymentSheet.Cancel(reason)
+    
+    S -> R: UpdateStatusAsync(id, Status = Cancelled, Version = Version + 1)
+    activate R
+    R -> DB: UPDATE PaymentSheets\nSET Status = 'Cancelled', Version = Version + 1\nWHERE Id = id AND Version = currentVersion
+    DB --> R: rowsAffected (0 hoặc 1)
+    deactivate R
+    
+    alt #LightPink [A5: Xung đột thao tác đồng thời (Concurrency Conflict)]
+        note over S, DB: rowsAffected = 0: Phiên bản bảng đã bị thay đổi bởi giao dịch khác
+        S -> DB: RollbackAsync()
+        S --> API: throw ConcurrencyConflictException("Bảng thanh toán đã bị thay đổi đồng thời")
+        API --> User: 409 Conflict\n{ code: "CONCURRENCY_CONFLICT", message: "..." }
+    else [Cập nhật trạng thái thành công (rowsAffected = 1)]
+        == Ghi nhận Audit Log (Bắt buộc theo NFR-PAY-01) ==
+        S -> A: RecordStateChangeAsync(sheetId, from: Draft, to: Cancelled, actor: currentUser, reason, timestamp)
+        activate A
+        A -> DB: INSERT INTO AuditLogs (EntityName, EntityId, Action, OldState, NewState, PerformedBy, PerformedAt, Reason)
+        DB --> A: Result (Success / DbError)
+        
+        alt #LightPink [A6: Lỗi lưu trữ CSDL hoặc ghi Audit Log thất bại]
+            DB --> A: DbException / Timeout
+            A --> S: throw AuditLogFailedException("Ghi audit log thất bại")
+            deactivate A
+            S -> DB: RollbackAsync()
+            note over S, DB
+              Rollback toàn bộ giao dịch để bảo toàn NFR-PAY-01:
+              Không lưu trạng thái Cancelled nếu audit log không thể ghi thành công.
+            end note
+            S --> API: throw InternalServerException("Lỗi hệ thống khi lưu trữ dữ liệu")
+            API --> User: 500 Internal Server Error\n{ code: "INTERNAL_ERROR", message: "..." }
+        else [Ghi Audit Log thành công]
+            A --> S: Success
+            
+            == Commit giao dịch ==
+            S -> DB: CommitTransactionAsync()
+            deactivate DB
+            
+            note over S
+              Bảng thanh toán đã ở trạng thái Cancelled vĩnh viễn:
+              - Không được dùng lại, không được chỉnh sửa/trình duyệt [TA-SPEC §4.5].
+              - Quyền lập lại bảng mới cho kỳ tháng M phụ thuộc xác nhận OQ-US05-02.
+            end note
+            
+            S --> API: CancelPaymentSheetResult { Id = id, Status = Cancelled }
+            deactivate S
+            
+            API --> User: 200 OK\n{ id: id, status: "Cancelled", message: "Hủy bảng nháp thành công" }
+            deactivate API
+        end
+    end
+end
+
+@enduml
+

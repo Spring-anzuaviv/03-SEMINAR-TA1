@@ -25,7 +25,7 @@ DESIGN_RE = (r"(01-requirements-summary|02-architecture-design|03-detailed-desig
              r"07-design-decisions|08-handoff-to-developer)-{v}\.md")
 DIAGRAM_RE = (r"(seq-us-0[1-5](-(" + OPS + r"))?|component|class|state-machine|erd|"
               r"use-case|activity-(" + OPS + r"))-{v}\.(puml|svg|png)")
-REVIEW_RE = r"(ai-review|review-assessment)-\d{2}-v[12]\.md|evaluation-report\.md"
+REVIEW_RE = r"(ai-review|review-assessment|user-review)-(\d{2}|us-0[1-5])(-v[12])?\.md|evaluation-report\.md"
 ALWAYS_OK = (".gitkeep", "README.md")
 
 

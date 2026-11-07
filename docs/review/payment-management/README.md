@@ -5,7 +5,9 @@ review nằm trong tên file ([naming-versioning §3](../../../skills/naming-ver
 
 | File | Nội dung | Ai ghi |
 |---|---|---|
-| `ai-review-01-v1.md` | Báo cáo reviewer lần 01 trên bản v1; nhận xét `R01-kk` | AI, vai trò reviewer, chat mới |
+| `ai-review-us-05-v1.md` | Báo cáo reviewer độc lập cho US-PAY-05 (v1); nhận xét `R01-01` đến `R01-07` | AI, vai trò reviewer |
+| `user-review-us-05.md` | Báo cáo đánh giá của nhóm cho US-PAY-05 (vấn đề phát hiện + đánh giá nhận xét AI) | Nhóm |
+| `ai-review-01-v1.md` | Báo cáo reviewer lần 01 trên toàn bộ bản v1 (khi hoàn thành đủ 5 US); nhận xét `R01-kk` | AI, vai trò reviewer, chat mới |
 | `review-assessment-01-v1.md` | Đánh giá từng `R01-kk`: Đúng/Sai/Thừa, lý do, căn cứ, chấp nhận/từ chối/chờ, file/commit sửa ở v2, người/ngày | Nhóm |
 | `evaluation-report.md` | **Báo cáo đánh giá nộp – mục 2 của đề** | Nhóm |
 
