@@ -17,7 +17,7 @@ Mọi file thiết kế suy ra từ sys spec cùng version trong
 | Đề yêu cầu (mục 1) | File trong `v1/` | Bước | Đầu vào bắt buộc | Trạng thái |
 |---|---|---|---|---|
 | Tóm tắt yêu cầu | `01-requirements-summary-v1.md` | 3 | `sys-us-*-v1`, `open-questions-v1` | Chưa làm |
-| Sequence diagram | `diagrams/seq-us-01-v1.puml` … `seq-us-05-v1.puml` | 4 | `sys-us-NN-v1.md` cùng US | Chưa làm |
+| Sequence diagram | `diagrams/seq-us-01-v1.puml` … `seq-us-05-v1.puml` | 4 | `sys-us-NN-v1.md` cùng US | seq-us-05-v1 đã lập |
 | Kiến trúc | `02-architecture-design-v1.md`, `diagrams/component-v1.puml` | 5 | sequence v1, `src/Qtkd.Api/` | Chưa làm |
 | Class / state diagram | `03-detailed-design-v1.md`, `diagrams/class-v1.puml`, `diagrams/state-machine-v1.puml` | 6 | sequence, kiến trúc v1 | Chưa làm |
 | API contract | `04-api-contract-v1.md` | 7 | sequence, 03 v1 | Chưa làm |

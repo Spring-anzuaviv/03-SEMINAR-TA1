@@ -16,8 +16,8 @@
 | `sys-us-02-v1.md` | US-PAY-02 Trình duyệt | | Chưa làm |
 | `sys-us-03-v1.md` | US-PAY-03 Duyệt / từ chối | | Chưa làm |
 | `sys-us-04-v1.md` | US-PAY-04 Điều chỉnh bảng đã duyệt | | Chưa làm |
-| `sys-us-05-v1.md` | US-PAY-05 Hủy bảng nháp | | Chưa làm |
-| `open-questions-v1.md` | Bảng OQ dùng chung (OQ-01..05 giữ chỗ + OQ-USNN-kk) | | Chưa làm |
+| `sys-us-05-v1.md` | US-PAY-05 Hủy bảng nháp | BA Team | Đã lập (v1) |
+| `open-questions-v1.md` | Bảng OQ dùng chung (OQ-01..05 giữ chỗ + OQ-USNN-kk) | BA Team | Đang cập nhật (v1) |
 | `requirements-checklist-v1.md` | 5 US, 8 PAY, 2 NFR → trạng thái/OQ | | Chưa làm |
 
 Nhóm tự điền cột Người phụ trách/Trạng thái. Năm file sys-us có thể chia cho

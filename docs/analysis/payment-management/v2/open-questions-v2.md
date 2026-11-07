@@ -1,0 +1,18 @@
+# Danh mục Open Questions – Bảng thanh toán (v2)
+
+> Phiên bản: v2 · Ngày: 07/11/2026 · Người phụ trách: BA Team / Người phụ trách duyệt  
+> Đầu vào: `open-questions-v1.md`; `user-review-us-05.md`; TA-SPEC §1–6; TA-PDF tr.1–3; `sys-us-05-v2.md`  
+> AI: Gemini 3.8 Flash · Prompt: P-14 trong docs/workflow/prompt-log.md  
+> Trạng thái: Đã cập nhật kết quả xác nhận cho US-PAY-05 (v2)  
+
+Tài liệu này tổng hợp các điểm Mâu thuẫn / Mơ hồ / Thiếu trong đặc tả bài toán Bảng thanh toán (TA 1–2) đối với use case **US-PAY-05 (Hủy bảng nháp)**.
+
+---
+
+## Bảng theo dõi Open Questions
+
+| ID | Vị trí mọi nguồn | Loại Mâu thuẫn/Mơ hồ/Thiếu | Mô tả | Lý do cần xác nhận | Lựa chọn đã duyệt | Ảnh hưởng | Trạng thái | Người/ngày/câu trả lời và tham chiếu |
+|---|---|---|---|---|---|---|---|---|
+| **OQ-US05-01** | TA-SPEC §4.5 tr.2 ("Bảng ở trạng thái Draft có thể bị hủy khi không còn cần thiết"); §2 tr.1 (định nghĩa vai trò); TA-PDF tr.1, tr.2 | Mơ hồ | Đặc tả dùng thể bị động ("có thể bị hủy") mà không nêu rõ tác nhân nào được phép hủy bảng thanh toán Draft: chỉ NVKD tạo bảng (owner), bất kỳ NVKD nào, hay cả KTT / GĐKD? | Cần căn cứ chính xác để thiết kế phân quyền (Authorization) và kiểm tra quyền tại API/UI. | **Áp dụng Lựa chọn B**: Bất kỳ NVKD nào quản lý hợp đồng đó đều có quyền hủy. | SYS-US-05 (P1, Bước 2, Nhánh A2, AC-US05-01, AC-US05-04), `seq-us-05-v2.puml` | **Đã xác nhận** | Người phụ trách xác nhận ngày 07/11/2026: **Áp dụng Lựa chọn B** – Bất kỳ NVKD nào quản lý hợp đồng đó đều có quyền hủy. |
+| **OQ-US05-02** | TA-SPEC §4.5 tr.2 ("Sau khi hủy, bảng chuyển sang Cancelled và không dùng lại được"); §5 PAY-01 tr.2 ("Mỗi hợp đồng chỉ có một bảng thanh toán cho mỗi tháng"); TA-PDF tr.2 | Mơ hồ | Sau khi một bảng thanh toán của kỳ tháng M bị hủy sang `Cancelled`, hợp đồng đó có được phép lập một bảng thanh toán mới cho cùng kỳ tháng M đó nữa không? | PAY-01 quy định mỗi hợp đồng chỉ có một bảng cho mỗi tháng. Nếu bảng Cancelled vẫn tính vào giới hạn này thì hợp đồng sẽ không xuất được hóa đơn kỳ đó. Nếu cho phép lập lại, CSDL phải dùng Filtered Unique Index. | **Áp dụng Lựa chọn A**: Được phép lập bảng thanh toán mới cho kỳ đó (bảng Cancelled chỉ lưu vết audit, không tính vào ràng buộc duy nhất của kỳ). | SYS-US-05 (S4, AC-US05-08), US-PAY-01 (PAY-01), Data model (Filtered Index `WHERE Status != 'Cancelled'`), `seq-us-05-v2.puml` | **Đã xác nhận** | Người phụ trách xác nhận ngày 07/11/2026: **Áp dụng Lựa chọn A** – Được phép lập bảng thanh toán mới cho kỳ đó (bảng Cancelled chỉ lưu vết audit, không tính vào ràng buộc duy nhất của kỳ; CSDL áp dụng Filtered Unique Index `WHERE Status != 'Cancelled'`). |
+| **OQ-US05-03** | TA-SPEC §4.5 tr.2 ("Bảng ở trạng thái Draft có thể bị hủy khi không còn cần thiết"); §6 tr.3 ("Mọi thay đổi trạng thái và mọi điều chỉnh phải được ghi audit log (ai, lúc nào, thay đổi gì)"); TA-PDF tr.2, tr.3 | Thiếu | Thao tác hủy bảng thanh toán Draft có bắt buộc người dùng nhập "Lý do hủy" (Cancellation Reason) hay không? Và lý do này được lưu trên bảng thanh toán hay chỉ lưu trong Audit Log? | §4.5 chỉ nêu điều kiện định tính "khi không còn cần thiết" nhưng không quy định rõ trường lý do hủy. Cần xác nhận để thống nhất API request contract và schema lưu trữ. | **Áp dụng Lựa chọn B**: Tùy chọn nhập lý do hủy (optional). | SYS-US-05 (B1, B4, S3, AC-US05-01, AC-US05-07), API Contract (`POST .../cancel` nhận `{ reason?: string }`), `seq-us-05-v2.puml` | **Đã xác nhận** | Người phụ trách xác nhận ngày 07/11/2026: **Áp dụng Lựa chọn B** – Tùy chọn nhập lý do hủy (optional). Người dùng có thể cung cấp lý do hủy hoặc không; nếu có thì ghi nhận vào Audit Log. |

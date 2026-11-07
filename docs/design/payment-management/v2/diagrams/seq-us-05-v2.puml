@@ -1,0 +1,143 @@
+@startuml seq-us-05-v2
+title Hủy bảng nháp (US-PAY-05) – v2
+' Phiên bản: v2 | Đầu vào: sys-us-05-v2.md; user-review-us-05.md; ai-review-us-05-v1.md | Prompt: P-14
+' Mục đích: Đặc tả tuần tự luồng hủy bảng thanh toán từ trạng thái Draft sang Cancelled (Bản sau review v2)
+' Phạm vi: US-PAY-05; TA-SPEC §1, §3, §4.5, §6; TA-PDF tr.1, tr.2, tr.3
+' Quy tắc liên quan: NFR-PAY-01 (Audit log bắt buộc), PAY-01 (ràng buộc kỳ khi hủy), PAY-05 (bất biến)
+' Các quyết định nghiệp vụ đã xác nhận (từ user-review-us-05.md):
+'   - OQ-US05-01: Quyền thực hiện hủy thuộc về NVKD quản lý hợp đồng [QUYẾT ĐỊNH ĐÃ XÁC NHẬN]
+'   - OQ-US05-02: Được phép lập bảng thanh toán mới cho kỳ sau khi hủy bảng cũ (áp dụng Filtered Unique Index) [QUYẾT ĐỊNH ĐÃ XÁC NHẬN]
+'   - OQ-US05-03: Lý do hủy là tùy chọn (optional); loại bỏ nhánh A4 cũ của v1 [QUYẾT ĐỊNH ĐÃ XÁC NHẬN]
+' Các nhận xét review v1 đã xử lý: R01-02 (Quyền hủy), R01-04 (Optimistic Concurrency), R01-05 (Chuẩn hóa API, reason optional), R01-06 (Filtered Index)
+' Trạng thái: Bản sau review – Design Pending Approval
+
+autonumber
+
+actor "NVKD quản lý hợp đồng\n[QUYẾT ĐỊNH ĐÃ XÁC NHẬN]" as User
+participant "PaymentController" as API
+participant "PaymentService" as S
+participant "PaymentRepository" as R
+participant "AuditLogService" as A
+database "Database\n(Transaction)" as DB
+
+== Khởi tạo yêu cầu hủy bảng thanh toán ==
+User -> API: POST /api/payment-sheets/{id}/cancel\n(CancelPaymentSheetRequest { reason?: string })\n[Lý do tùy chọn - OQ-US05-03]
+activate API
+
+API -> S: CancelAsync(id, request, currentUser)
+activate S
+
+== Bước 1: Tra cứu thông tin bảng thanh toán ==
+S -> R: GetByIdAsync(id)
+activate R
+R -> DB: SELECT * FROM PaymentSheets WHERE Id = id
+activate DB
+DB --> R: SheetData / null
+deactivate DB
+R --> S: paymentSheet / null
+deactivate R
+
+alt #LightPink [A1: Bảng thanh toán không tồn tại]
+    S --> API: throw NotFoundException("Không tìm thấy bảng thanh toán")
+    API --> User: 404 Not Found\n{ code: "NOT_FOUND", message: "..." }
+end
+
+== Bước 2: Kiểm tra phân quyền NVKD quản lý hợp đồng ==
+note over S
+  Xác nhận quyền thực hiện (OQ-US05-01 đã duyệt):
+  currentUser.Role == NVKD && currentUser.ManagesContract(paymentSheet.ContractId)
+end note
+S -> S: CheckPermission(currentUser, paymentSheet)
+
+alt #LightPink [A2: Người dùng không có quyền (không phải NVKD quản lý hợp đồng)]
+    S --> API: throw ForbiddenException("Chỉ NVKD quản lý hợp đồng mới có quyền hủy bảng thanh toán")
+    API --> User: 403 Forbidden\n{ code: "FORBIDDEN", message: "..." }
+end
+
+== Bước 3: Kiểm tra trạng thái hiện tại của bảng thanh toán ==
+note over S
+  Kiểm tra điều kiện tiền quyết: trạng thái phải là Draft [TA-SPEC §3, §4.5]
+end note
+S -> S: ValidateStatusIsDraft(paymentSheet.Status)
+
+alt #LightPink [A3: Bảng không ở trạng thái Draft]
+    note over S: Bảng ở trạng thái PendingApproval, Approved, Rejected, hoặc Cancelled
+    S --> API: throw InvalidStateException("Chỉ được hủy bảng ở trạng thái Draft")
+    API --> User: 400 Bad Request\n{ code: "INVALID_STATE", message: "..." }
+end
+
+== Bước 4: Xử lý lý do hủy (Tùy chọn - OQ-US05-03 đã duyệt) ==
+note over S
+  Tiếp nhận lý do hủy (OQ-US05-03: Lựa chọn B):
+  finalReason = !string.IsNullOrWhiteSpace(request.Reason)
+    ? request.Reason
+    : "Người dùng hủy bảng nháp"
+  (Không chặn lỗi nếu để trống lý do)
+end note
+S -> S: ResolveCancellationReason(request.Reason)
+
+== Bước 5, 6, 7: Xử lý giao dịch chuyển trạng thái và ghi Audit Log ==
+group Transaction [Giao dịch cơ sở dữ liệu]
+    S -> DB: BeginTransactionAsync()
+    activate DB
+    
+    note over S
+      Chuyển trạng thái: Draft -> Cancelled [TA-SPEC §3, §4.5]
+      Tăng Concurrency Version (R01-04 đã chấp nhận)
+    end note
+    S -> S: paymentSheet.Cancel(finalReason)
+    
+    S -> R: UpdateStatusAsync(id, Status = Cancelled, Version = Version + 1)
+    activate R
+    R -> DB: UPDATE PaymentSheets\nSET Status = 'Cancelled', Version = Version + 1\nWHERE Id = id AND Version = currentVersion
+    DB --> R: rowsAffected (0 hoặc 1)
+    deactivate R
+    
+    alt #LightPink [A4: Xung đột thao tác đồng thời (Concurrency Conflict - R01-04)]
+        note over S, DB: rowsAffected == 0: Phiên bản bảng đã bị thay đổi bởi giao dịch khác
+        S -> DB: RollbackAsync()
+        S --> API: throw ConcurrencyConflictException("Bảng thanh toán đã bị thay đổi đồng thời")
+        API --> User: 409 Conflict\n{ code: "CONCURRENCY_CONFLICT", message: "..." }
+    else [Cập nhật trạng thái thành công (rowsAffected = 1)]
+        == Ghi nhận Audit Log (Bắt buộc theo NFR-PAY-01) ==
+        S -> A: RecordStateChangeAsync(sheetId, from: Draft, to: Cancelled, actor: currentUser, reason: finalReason, timestamp)
+        activate A
+        A -> DB: INSERT INTO AuditLogs (EntityName, EntityId, Action, OldState, NewState, PerformedBy, PerformedAt, Reason)
+        DB --> A: Result (Success / DbError)
+        
+        alt #LightPink [A5: Lỗi lưu trữ CSDL hoặc ghi Audit Log thất bại]
+            DB --> A: DbException / Timeout
+            A --> S: throw AuditLogFailedException("Ghi audit log thất bại")
+            deactivate A
+            S -> DB: RollbackAsync()
+            note over S, DB
+              Rollback toàn bộ giao dịch để bảo toàn NFR-PAY-01:
+              Không lưu trạng thái Cancelled nếu audit log không thể ghi thành công.
+            end note
+            S --> API: throw InternalServerException("Lỗi hệ thống khi lưu trữ dữ liệu")
+            API --> User: 500 Internal Server Error\n{ code: "INTERNAL_ERROR", message: "..." }
+        else [Ghi Audit Log thành công]
+            A --> S: Success
+            
+            == Commit giao dịch ==
+            S -> DB: CommitTransactionAsync()
+            deactivate DB
+            
+            note over S
+              Bảng thanh toán đã ở trạng thái Cancelled vĩnh viễn (Terminal State - R01-03):
+              - Khóa mọi thao tác chỉnh sửa/trình duyệt [TA-SPEC §4.5].
+              - Quyết định OQ-US05-02 đã duyệt (R01-06): NVKD được phép lập bảng mới cho kỳ này;
+                CSDL áp dụng Filtered Unique Index: WHERE Status != 'Cancelled'.
+            end note
+            
+            S --> API: CancelPaymentSheetResult { Id = id, Status = Cancelled }
+            deactivate S
+            
+            API --> User: 200 OK\n{ id: id, status: "Cancelled", message: "Hủy bảng nháp thành công" }
+            deactivate API
+        end
+    end
+end
+
+@enduml
+

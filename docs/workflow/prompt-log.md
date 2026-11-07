@@ -162,23 +162,6 @@ Prompt nguyên văn:
 Prompt nguyên văn:
 
     - phải
-    - + giá trị thuế
-
-### P-07 – Ghi xác nhận lượt 4 OQ US-PAY-03 vào v1
-
-| Trường | Giá trị |
-|---|---|
-| Ngày / người chạy | 07/11/2026 / (nhóm điền) |
-| Công cụ / model | Claude Code / Claude Sonnet 5.5 |
-| Vai trò / skill / version | ba + design / sys-us-03, sequence-diagram / v1 |
-| Nguồn đã đưa vào | File v1 của US-PAY-03, câu trả lời của người phụ trách trong chat |
-| File đầu ra | docs/analysis/payment-management/v1/sys-us-03-v1.md, open-questions-v1.md; docs/design/payment-management/v1/diagrams/seq-us-03-v1.puml, 03-detailed-design-v1.md |
-| Kiểm chứng | `python scripts/verify_agent_config.py` (kết quả trong phản hồi); PlantUML chưa kiểm tra kết xuất |
-| Phần AI viết / nhóm sửa | AI viết; nhóm chưa sửa |
-
-Prompt nguyên văn:
-
-    - phải
     - giá trị thuế là 1 giá trị x hoặc % trên tổng
 
 ### P-08 – Bổ sung họ tên người phụ trách và người xác nhận (US-PAY-03)
@@ -230,3 +213,74 @@ Prompt nguyên văn:
 Prompt nguyên văn:
 
     docs\design\payment-management\v1\us-pay-04 xếp các file cho đúng chổ
+
+### P-11 – Đặc tả use case hệ thống sys-us-05-v1 (US-PAY-05)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 07/11/2026 / BA Team |
+| Công cụ / model | Gemini 3.8 Flash |
+| Vai trò / skill / version | ba / sys-spec / v1 |
+| Nguồn đã đưa vào | AGENTS.md, spec.md (§1, §2, §3, §4.5, §5, §6), assignment-ta-1-2.pdf (tr.1, tr.2, tr.3), payment-context.md, naming-versioning |
+| File đầu ra | `docs/analysis/payment-management/v1/sys-us-05-v1.md`, `docs/analysis/payment-management/v1/open-questions-v1.md` |
+| Kiểm chứng | `python scripts/verify_agent_config.py` → PASS (0 failed checks); kiểm tra khớp hai chiều OQ: PASS (OQ-US05-01, OQ-US05-02, OQ-US05-03) |
+| Phần nhóm sửa | Chưa có |
+
+Prompt nguyên văn:
+
+    Đọc AGENTS.md, đóng vai agent ba, dùng skill sys-spec cho US-PAY-05, version v1.
+    Ghi docs/analysis/payment-management/v1/sys-us-05-v1.md. Mỗi điểm chưa rõ phải có
+    OQ, nguồn và lý do cần xác nhận; không tự chốt nghiệp vụ.
+
+### P-12 – Sequence diagram seq-us-05-v1.puml (US-PAY-05)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 07/11/2026 / Design Team |
+| Công cụ / model | Gemini 3.8 Flash |
+| Vai trò / skill / version | design / sequence-diagram / v1 |
+| Nguồn đã đưa vào | `docs/analysis/payment-management/v1/sys-us-05-v1.md`, `open-questions-v1.md`, TA-SPEC §1, §3, §4.5, §6; TA-PDF tr.1, tr.2, tr.3; skill sequence-diagram, naming-versioning |
+| File đầu ra | `docs/design/payment-management/v1/diagrams/seq-us-05-v1.puml` |
+| Kiểm chứng | `python scripts/verify_agent_config.py` → PASS (0 failed checks); đối chiếu đầy đủ các bước dòng cơ bản/thay thế; chưa kiểm tra kết xuất sơ đồ (máy chưa cấu hình plantuml.jar trên PATH) |
+| Phần nhóm sửa | Chưa có |
+
+Prompt nguyên văn:
+
+    Đọc AGENTS.md, đóng vai agent design, dùng skill sequence-diagram cho US-PAY-05,
+    version v1, đầu vào sys-us-05-v1.md. Ghi vào docs/design/payment-management/v1/diagrams/.
+    Giữ OQ còn mở; phần phụ thuộc ghi Blocked by OQ.
+
+### P-13 – Đánh giá độc lập US-PAY-05 (v1)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 07/11/2026 / Reviewer |
+| Công cụ / model | Gemini 3.8 Flash |
+| Vai trò / skill / version | reviewer / – / v1 |
+| Nguồn đã đưa vào | `spec.md` (§1–6), `assignment-ta-1-2.pdf` (tr.1–3), `sys-us-05-v1.md`, `open-questions-v1.md`, `diagrams/seq-us-05-v1.puml` |
+| File đầu ra | `docs/review/payment-management/ai-review-us-05-v1.md` |
+| Kiểm chứng | `python scripts/verify_agent_config.py` → PASS (0 failed checks); đối chiếu đầy đủ bảng bao phủ yêu cầu US-PAY-05, PAY-01, PAY-05, NFR-PAY-01/02 |
+| Phần nhóm sửa | Chưa có |
+
+Prompt nguyên văn:
+
+    Đọc AGENTS.md và đóng vai agent reviewer. đối chiếu đặc tả TA và bản thiết kế v1, chỉ làm cho riêng cho US-PAY-05, tại docs/design/payment-management/v1/ cùng docs/analysis/payment-management/v1/.  Ghi báo cáo mới
+    docs/review/payment-management/ai-review-us-05-v1.md
+    Không sửa thiết kế hoặc tự đóng OQ.
+
+### P-14 – Triển khai sys-us-05-v2.md và seq-us-05-v2.puml sau user review
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 07/11/2026 / BA & Design Team |
+| Công cụ / model | Gemini 3.8 Flash |
+| Vai trò / skill / version | ba & design / sys-spec & sequence-diagram / v2 |
+| Nguồn đã đưa vào | `user-review-us-05.md`, `sys-us-05-v1.md`, `open-questions-v1.md`, `seq-us-05-v1.puml`, `ai-review-us-05-v1.md`, TA-SPEC §1–6, TA-PDF tr.1–3 |
+| File đầu ra | `docs/analysis/payment-management/v2/sys-us-05-v2.md`, `docs/analysis/payment-management/v2/open-questions-v2.md`, `docs/design/payment-management/v2/diagrams/seq-us-05-v2.puml` |
+| Kiểm chứng | `python scripts/verify_agent_config.py` → PASS (0 failed checks); đối chiếu đầy đủ các quyết định đã xác nhận (OQ-US05-01: NVKD quản lý HĐ, OQ-US05-02: được lập lại kỳ đó, OQ-US05-03: lý do hủy tùy chọn, bỏ nhánh A4 cũ) |
+| Phần nhóm sửa | Chưa có |
+
+Prompt nguyên văn:
+
+    Đọc AGENTS.md, đóng vai agent ba, dựa vào docs\review\payment-management\user-review-us-05.md, dùng skill sys-spec cho US-PAY-05, version v2. Ghi docs/analysis/payment-management/v2/sys-us-05-v2.md
+    Sau đó, đóng vai agent design, dựa vào docs\review\payment-management\user-review-us-05.md,  dùng skill sequence-diagram cho US-PAY-05, version v2, đầu vào sys-us-05-v2.md. Ghi vào docs/design/payment-management/v2/diagrams/.
