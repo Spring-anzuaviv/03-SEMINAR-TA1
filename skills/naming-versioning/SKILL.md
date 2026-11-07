@@ -72,6 +72,10 @@ Sơ đồ: `docs/design/payment-management/vK/diagrams/`.
 | `erd-vK.puml` | ERD (mô hình dữ liệu, không phải UML) | Tùy chọn, đi với 05 |
 | `use-case-vK.puml`, `activity-<thao-tac>-vK.puml` | Tùy chọn | Chỉ khi cần |
 
+Khi nhập một bộ tài liệu có sẵn theo từng US, có thể giữ đặc tả, Open Questions
+và sequence cùng ảnh trong `docs/design/payment-management/vK/us-pay-NN/`.
+Dùng `sys-us-NN-vK.md`, `open-questions-vK.md` và tên sequence theo bảng trên.
+
 Review: `docs/review/payment-management/` (không chia thư mục, version nằm trong tên).
 
 | File | Nội dung | Ai ghi |
