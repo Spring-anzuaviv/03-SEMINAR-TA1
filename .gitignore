@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+.vscode/*.user
+*.user
+BAITAP_TA_1-2.pdf
+__pycache__/

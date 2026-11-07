@@ -1,0 +1,22 @@
+@base = http://localhost:5080
+
+### Kiểm tra API
+GET {{base}}/
+
+### Tạo hợp đồng (đổi ngày nếu cần)
+POST {{base}}/api/contracts
+Content-Type: application/json
+
+{
+  "customerName": "ABC Logistics",
+  "effectiveDate": "2030-01-01"
+}
+
+### Danh sách hợp đồng
+GET {{base}}/api/contracts
+
+### Gửi trình duyệt (thay ID nếu cần)
+POST {{base}}/api/contracts/1/submit
+
+### Gửi lần nữa — dự kiến HTTP 409
+POST {{base}}/api/contracts/1/submit
