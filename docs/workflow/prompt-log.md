@@ -284,3 +284,55 @@ Prompt nguyên văn:
 
     Đọc AGENTS.md, đóng vai agent ba, dựa vào docs\review\payment-management\user-review-us-05.md, dùng skill sys-spec cho US-PAY-05, version v2. Ghi docs/analysis/payment-management/v2/sys-us-05-v2.md
     Sau đó, đóng vai agent design, dựa vào docs\review\payment-management\user-review-us-05.md,  dùng skill sequence-diagram cho US-PAY-05, version v2, đầu vào sys-us-05-v2.md. Ghi vào docs/design/payment-management/v2/diagrams/.
+
+### P-15 – Bổ sung minh chứng lần soạn SYS-US-02 ban đầu (v1)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng chat, chưa cung cấp tên |
+| Công cụ / model | Codex / GPT-6; PowerShell, Python, apply_patch |
+| Vai trò / skill / version | ba / sys-spec, naming-versioning / v1 |
+| Nguồn | TA-SPEC §1–6, sources.md, OQ chung v1, sys-us-03/04/05-v1.md; PDF đính kèm và TA-PDF cục bộ chỉ kiểm tra SHA-256 |
+| Đầu ra | docs/analysis/payment-management/v1/sys-us-02-v1.md |
+| Kiểm chứng thực tế | Hai PDF cùng SHA-256 BC8B34CC847343151A496C2A515A7178BF90A834D5BEE909BDDCF56179BD218E. Đọc PDF thất bại vì thiếu pypdf; đã dùng TA-SPEC. Lệnh verify ban đầu lỗi mã hóa charmap; python -X utf8 scripts/verify_agent_config.py → PASS, 0 failed checks. |
+| Phần AI / nhóm sửa | AI soạn toàn bộ; chưa có nhóm sửa. Mục này được ghi bổ sung khi thực hiện P-16; minh chứng ban đầu nằm cuối sys spec. Không tạo commit. |
+
+Prompt nguyên văn:
+
+    hãy viết phần sys-us-02 theo bài tập này cho tôi vào thư mục v1 của project
+
+File đính kèm: C:/Users/PC/Downloads/BAITAP_TA_1-2.pdf.
+
+### P-16 – Đối chiếu BA và tạo sequence US-PAY-02 (v1)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng chat, chưa cung cấp tên |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python; PlantUML 1.2025.2; Java 1.8.0_251; Graphviz 2.44.1 được PlantUML -version nhận diện |
+| Vai trò / skill / version | ba rồi design trong cùng chat / sequence-diagram, naming-versioning, payment-context / v1 |
+| Nguồn đã đọc | AGENTS.md; các skill; workflow README; TA-SPEC §1–6; sources.md; sys-us-02-v1.md; open-questions-v1.md; đầu báo cáo ai-review-us-05-v1.md (phạm vi review); đầu sequence US03/05 để đối chiếu tên; danh sách review/thiết kế; prompt-log |
+| Version được phép sửa | Không có ai-review-01-v1.md, chưa có review US02. ai-review-us-05-v1.md chỉ review US05. Tiếp tục v1 cho US02; không sửa bản US05 đã review; không tạo v2 và không suy ra phê duyệt từ review US05. |
+| Đầu ra BA | Sửa tối thiểu sys-us-02-v1.md (nhật ký, làm rõ Rejected còn blocked); bổ sung OQ-05, OQ-US02-01/02 và ghi ảnh hưởng của ID chung vào open-questions-v1.md. Giữ nguyên mọi dòng OQ cũ, không đóng OQ. |
+| Đầu ra design | docs/design/payment-management/v1/diagrams/seq-us-02-v1.puml, .svg, .png; 03-detailed-design-v1.md chỉ danh mục/tên tạm/truy vết/kiểm chứng; 07-design-decisions-v1.md chỉ DD-01 cho submit. |
+| Phần AI / nhóm sửa | AI thực hiện các thay đổi của lần này; chưa có nhóm sửa hoặc xác nhận nghiệp vụ; Design Pending Approval. Không sửa src, nguồn TA hoặc báo cáo review; không tạo commit. |
+
+Prompt nguyên văn:
+
+    Kiểm tra sys spec US-PAY-02 và tình trạng review để xác định version được phép cập nhật.
+
+    Đóng vai agent ba: đối chiếu sys spec US-PAY-02 với đặc tả cục bộ và bảng Open Questions chung. Cập nhật OQ liên quan, giữ nguyên ID hiện có, không ghi đè câu hỏi của US khác và không tự đóng câu hỏi chưa có xác nhận.
+
+    Sau đó đóng vai agent design, dùng skill sequence-diagram để tạo hoặc cập nhật sequence US-PAY-02 từ sys spec cùng version. Bao phủ luồng chính, nhánh lỗi, chống trình duyệt trùng và audit; ghi rõ `Blocked by OQ-...` ở phần chưa chốt.
+
+    Kiểm tra sơ đồ và ghi kết quả thực tế vào nhật ký prompt.
+
+Kiểm chứng thực tế:
+
+- Đọc nguồn bằng Get-Content, liệt kê review/thiết kế, Test-Path cho ai-review-01-v1.md → False. Không đọc lại PDF trực tiếp ở lượt này, không dùng tài liệu nghiệp vụ trực tuyến.
+- Tìm PlantUML trong các vị trí cục bộ không thấy jar; tìm rộng có một số thư mục Access denied. Java hiện có trên PATH là 1.8.0_251.
+- Tải công cụ (không phải nguồn nghiệp vụ) từ Maven Central bằng Invoke-WebRequest vào thư mục tạm: lần trong môi trường hạn chế lỗi “No such host is known”; chạy lại với quyền truy cập mạng thành công. java -jar ... -version → PlantUML 1.2025.2, Installation seems OK. Không lưu jar vào repo.
+- Lần gọi jar qua biến TEMP của môi trường hạn chế lỗi “Unable to access jarfile” vì TEMP khác môi trường tải. Đã dùng đường dẫn thực C:/Users/PC/AppData/Local/Temp/plantuml-1.2025.2.jar ở các lệnh sau.
+- `java -jar C:/Users/PC/AppData/Local/Temp/plantuml-1.2025.2.jar -charset UTF-8 -checkonly docs/design/payment-management/v1/diagrams/seq-us-02-v1.puml` → exit 0.
+- Cùng lệnh trên thay -checkonly bằng -tsvg, rồi -tpng → cả hai exit 0. SVG 82.584 byte; PNG 343.409 byte; kích thước 1941 × 3863. Đã mở PNG bằng view_image và kiểm tra trực quan: đủ các phần từ tiêu đề tới legend, không thấy cắt nội dung hoặc lỗi chữ.
+- Kiểm tra đối chiếu Python qua stdin: lần đầu assertion thất bại vì lấy mọi chuỗi OQ trong sys spec, gồm cả OQ-US03-05 chỉ được nhắc để phân biệt thông báo kết quả duyệt. Điều chỉnh phạm vi kiểm tra thành ID ở bảng câu hỏi: PASS, đủ 8 ID được đồng bộ giữa sys/OQ/sequence. 18 dòng OQ cũ giữ nguyên so với git HEAD. Cặp start/end và tên sơ đồ đúng; SVG XML hợp lệ, không có Syntax Error. Bảng đối chiếu trong 03 bao phủ bước 1–8, A2, A3/A3.1, A4/A4.1, A5, A6/A6.1, A7 và AC-US02-01..13.
+- `python -X utf8 scripts/verify_agent_config.py` → PASS (0 failed checks). Không kiểm thử ứng dụng, chưa đo NFR hiệu năng; kiểm chứng tài liệu không phải phê duyệt nghiệp vụ.

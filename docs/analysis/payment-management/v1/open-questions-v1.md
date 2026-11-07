@@ -27,6 +27,28 @@
 | **OQ-US05-02** | TA-SPEC §4.5 tr.2 ("Sau khi hủy, bảng chuyển sang Cancelled và không dùng lại được"); §5 PAY-01 tr.2 ("Mỗi hợp đồng chỉ có một bảng thanh toán cho mỗi tháng"); TA-PDF tr.2 | Mơ hồ | Sau khi một bảng thanh toán của kỳ tháng M bị hủy sang `Cancelled`, hợp đồng đó có được phép lập một bảng thanh toán mới cho cùng kỳ tháng M đó nữa không? | **Lựa chọn A**: Được phép lập bảng thanh toán mới cho kỳ đó (bảng Cancelled chỉ lưu vết audit, không tính vào ràng buộc duy nhất của kỳ).<br>**Lựa chọn B**: Không được phép lập lại trong cùng kỳ. | Cần xác nhận | – | PAY-01 quy định mỗi hợp đồng chỉ có một bảng cho mỗi tháng. Quyết định ràng buộc duy nhất của kỳ (Filtered Unique Index). Ảnh hưởng SYS-US-05 (S4, AC-US05-08), US-PAY-01 (PAY-01). |
 | **OQ-US05-03** | TA-SPEC §4.5 tr.2 ("Bảng ở trạng thái Draft có thể bị hủy khi không còn cần thiết"); §6 tr.3 ("Mọi thay đổi trạng thái và mọi điều chỉnh phải được ghi audit log (ai, lúc nào, thay đổi gì)"); TA-PDF tr.2, tr.3 | Thiếu | Thao tác hủy bảng thanh toán Draft có bắt buộc người dùng nhập "Lý do hủy" (Cancellation Reason) hay không? Và lý do này được lưu trên bảng thanh toán hay chỉ lưu trong Audit Log? | **Lựa chọn A**: Bắt buộc nhập lý do hủy.<br>**Lựa chọn B**: Tùy chọn nhập lý do hủy (optional).<br>**Lựa chọn C**: Không yêu cầu lý do hủy. | Cần xác nhận | – | §4.5 không quy định rõ trường lý do hủy. Quyết định API contract và schema lưu trữ. Ảnh hưởng SYS-US-05 (Bước 1, 4, Nhánh A4, S3, AC-US05-01, AC-US05-07). |
 
+## Bổ sung US-PAY-02 ngày 08/11/2026 (P-16)
+
+Đầu vào: [sys-us-02-v1.md](sys-us-02-v1.md), TA-SPEC §2–4.3, PAY-04, PAY-06, PAY-08; TA-PDF tr.1–2 (dẫn trang theo sổ nguồn). Các dòng của US khác ở trên được giữ nguyên. OQ-05 là ID giữ chỗ được điền nội dung, OQ-US02-01/02 giữ nguyên ID đã có trong sys spec. Tất cả chưa có câu trả lời xác nhận.
+
+| ID | Vị trí mọi nguồn | Loại Mâu thuẫn/Mơ hồ/Thiếu | Mô tả | Lý do cần xác nhận | Lựa chọn | Ảnh hưởng | Trạng thái | Người/ngày/câu trả lời và tham chiếu |
+|---|---|---|---|---|---|---|---|---|
+| OQ-05 | TA-SPEC §5 PAY-04 “thiếu dòng dịch vụ bắt buộc”; TA-PDF tr.2 | Thiếu | Danh sách dòng bắt buộc và tiêu chí xác định thiếu? | Chưa đủ căn cứ xây dựng kiểm tra đầy đủ dòng | Người phụ trách cung cấp danh sách/quy tắc theo hợp đồng hoặc dịch vụ | SYS-US-02 P3, bước 4, A4.1; AC-US02-01/04 | Cần xác nhận | Chưa có |
+| OQ-US02-01 | TA-SPEC §2 và §4.2 “NVKD”; TA-PDF tr.1–2 | Mơ hồ | NVKD được trình bảng nào? | Vai trò chưa xác định quyền trên từng bảng | Chỉ bảng mình lập / phạm vi được phân công / mọi bảng; chưa chọn | SYS-US-02 P1, bước 2, A2; AC-US02-01/06 | Cần xác nhận | Chưa có |
+| OQ-US02-02 | TA-SPEC §4.2 “gửi thông báo cho người duyệt”; TA-PDF tr.2 | Thiếu | Kênh/nội dung thông báo; gửi lỗi thì trạng thái và kết quả trình ra sao? | Tránh tự coi trình hoàn tất hoặc gửi trùng khi thông báo lỗi | Giữ chờ và gửi lại / hoàn tác trình; cần xác nhận cả kênh và nội dung | SYS-US-02 bước 7–8, A7, hậu điều kiện; AC-US02-01/12 | Cần xác nhận | Chưa có; OQ-US03-05 về thông báo kết quả duyệt không thay câu hỏi này |
+
+### Đối chiếu phụ thuộc dùng chung của US-PAY-02
+
+Đây là ghi nhận ảnh hưởng bổ sung, không thay thế đề xuất/câu hỏi US-PAY-03 trong bảng gốc. Khi dùng cho US-PAY-02, trạng thái là **Cần xác nhận**; “Không còn” hoặc “không chặn” trong cột ảnh hưởng cũ không phải bằng chứng khách hàng đã trả lời. [TA-SPEC §3, §4.2–4.3, PAY-06, PAY-08; TA-PDF tr.1–2; bảng đề xuất P-04..P-07 ở trên]
+
+| ID hiện có | Căn cứ và điều chưa chốt | Ảnh hưởng US-PAY-02 | Trạng thái / xác nhận |
+|---|---|---|---|
+| OQ-02 | §4.3 “từ” ↔ PAY-06 “trên”, TA-PDF tr.2: ai duyệt đúng 500 triệu | Bước 5/A5, AC-US02-01/10; Blocked by OQ-02 | Cần xác nhận; giữ đề xuất Đan Anh, chưa có xác nhận khách hàng |
+| OQ-US03-02 | §2, §4.3, PAY-06, TA-PDF tr.1–2: ánh xạ vai trò sang người nhận | Bước 5/A5, AC-US02-01/10; Blocked by OQ-US03-02 | Cần xác nhận; không chốt vai trò/cá nhân hoặc thay thế chéo |
+| OQ-US03-03 | §4.1, §4.3, PAY-03, PAY-06, TA-PDF tr.2: cơ sở tổng tiền so ngưỡng | Bước 5/A5, AC-US02-01/10; Blocked by OQ-US03-03 | Cần xác nhận; không tự thêm VAT/làm tròn từ đề xuất nhóm |
+| OQ-04 | §3 ↔ PAY-08, TA-PDF tr.1–2: đích sau từ chối | A3.1, AC-US02-09; Blocked by OQ-04 | Cần xác nhận; không tự chốt Rejected/Draft |
+| OQ-US03-07 | §3, PAY-08, TA-PDF tr.1–2: ai/khi nào đưa Rejected về Draft | A3.1, AC-US02-09; Blocked by OQ-US03-07 | Cần xác nhận; không tự chốt thao tác trở về Draft |
+
 ## Ví dụ để trao đổi về OQ-03 (từ bộ US-PAY-04)
 
 Giả sử bảng đã duyệt ghi **120 triệu** và biên bản xác nhận số đúng là **115 triệu**.
