@@ -496,3 +496,163 @@ Kiểm chứng P-17:
 - `java -jar C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -checkonly docs/design/payment-management/v1/diagrams/seq-us-01-v1.puml` → exit 0; thay `-checkonly` bằng `-tsvg` → exit 0, SVG hợp lệ. Đã chạy `-DPLANTUML_LIMIT_SIZE=22000 -tpng -o <TEMP>/codex-us01-ui-redesign` và xem PNG bằng view_image để kiểm tra bố cục tổng thể; PNG tạm không ghi vào repo.
 - `& C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe -X utf8 scripts/verify_agent_config.py` → `RESULT: PASS (0 failed checks)`; `git diff --check` → exit 0.
 - Script Python qua stdin kiểm tra thứ tự: bấm nút → mở form → chọn hợp đồng → kỳ → giá → tính xem trước → yêu cầu lưu → ghi CSDL: PASS. So sánh hash trước/sau cho các file ngoài phạm vi: nguồn nghiệp vụ, báo cáo review, tài liệu US khác và v2 đã có giữ nguyên; bốn bản sao v2 tạm đã xóa. So sánh hàng OQ: giữ ID, câu hỏi và lựa chọn, không tự ghi câu trả lời nghiệp vụ.
+
+### P-18 – Lưu conflict trước xác nhận và thiết kế US-PAY-01 v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace, chờ nhóm điền họ tên |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; Java 27.0.1; PlantUML 1.2024.3 |
+| Vai trò / skill / version | ba rồi design / naming-versioning, sys-spec, sequence-diagram / v1 chỉ bổ sung OQ lịch sử; v2 cho chức năng |
+| Nguồn đã đọc | AGENTS.md; TA-SPEC §1–6; nguồn/OQ/SYS v1; các xác nhận P-18.1..3 bên dưới; OQ và quyết định US05 v2 đã có; ai-review-03-v1.md để biết tình trạng bản cũ; Program.cs và ContractService.cs. Chưa đọc trực tiếp TA-PDF trong lượt này. Không lấy nguồn nghiệp vụ trực tuyến. |
+| File đầu ra chính | [OQ v1](../analysis/payment-management/v1/open-questions-v1.md); [SYS v2](../analysis/payment-management/v2/sys-us-01-v2.md); [OQ v2](../analysis/payment-management/v2/open-questions-v2.md); [sequence v2](../design/payment-management/v2/diagrams/seq-us-01-v2.puml), SVG cùng tên; [danh mục sequence](../design/payment-management/v2/03-detailed-design-v2.md). |
+| Baseline v2 | Sao chép các file còn thiếu sys-us-03/04, seq-us-03/04 từ v1, chỉ đổi version/liên kết/metadata, ghi không đổi nghiệp vụ; không ghi đè các tài liệu US05 v2 đã có. SVG US04 kết xuất từ nguồn đã đổi version. Chưa review lại US03/04. |
+| V1 / V2 | V1 giữ các conflict lúc chưa xác nhận, không ghi hồi tố câu trả lời mới, không sửa SYS/sequence/SVG v1. V2 ghi OQ-01 đã xác nhận và giá Active lúc lưu đã rõ; các phần chưa có câu trả lời vẫn còn mở. |
+| Quyết định được dùng | Từ chi tiết hợp đồng; trạng thái Active (Có hiệu lực); loại kỳ tháng/quý theo hợp đồng; không chồng lấn tháng/quý; tự lấy giá Active gắn hợp đồng, giá đổi trước lưu phải dùng giá Active; ghi chú tùy chọn; thông báo mọi kết quả và tô đỏ đúng trường vi phạm. Người xác nhận: người dùng trong chat, 08/11/2026, P-18.1..3. Đây là xác nhận từng nội dung, không phải phê duyệt toàn bộ thiết kế. |
+| Quyết định US05 đã có | OQ-US05-02 v2 đã ghi cho phép lập mới sau hủy, nguồn user-review-us-05.md §2.1, người phụ trách 07/11/2026. Giữ nguyên cả ba dòng OQ-US05 đã có. Không ghi thành lời xác nhận mới trong chat này và không coi SQL unique theo tháng cũ đủ bảo đảm chồng lấn quý/tháng. |
+| Phần AI viết / nhóm sửa | AI bổ sung OQ, viết SYS/sequence/catalogue v2, tạo SVG và nhật ký. Người dùng cung cấp review và các xác nhận được trích dưới đây. Không ghi thay nhóm đánh giá Đúng/Sai/Thừa cho toàn bộ nhận xét reviewer; không sửa báo cáo review, src/ hoặc đặc tả nguồn. Chưa commit, chưa chạy chức năng ứng dụng hoặc đo hiệu năng. |
+| Kiểm chứng | Kết quả cuối ghi ở cuối P-18. |
+
+#### P-18.1 – Review điểm vào, Active, giá và thông báo
+
+Prompt nguyên văn (phần My request):
+
+```text
+chưa thực hiện thay đổi file, chỉ thực hiện kiểm tra theo yêu cầu và review của tôi.
+
+
+
+chỉnh sửa đặc tả hiện tại:
+
+- bước 3: bảng thanh toán được lập từ màn hình xem chi tiết hợp đồng. vì vậy không có bước chọn hợp đồng này mà sẽ tự lấy từ màn hình hợp đồng.
+- bước 5: ghi rõ kiểm tra trạng thái active (có hiệu lực).
+- bước 8: chỉ có 1 bảng giá có hiệu lực tại một thời điểm. bảng giá này được gắn cố định với hợp đồng. khi thanh toán dùng bảng giá gắn cố định này. nếu bảng giá có thay đổi (đã thoả thuận giữa 2 bên) trong quá trình thực hiện lập bảng thanh toán (trạng thái draft) , thì bảng thanh toán phải sử dụng bảng đang có hiệu lực.
+- khi thực hiện xong, phải có thông báo dù thất bại hay thành công.
+- do có một số yếu tố thay đổi, do đó các bước trong đặc tả cũng cần phải điều chỉnh lại.
+- trong dòng thay thế và dòng lỗi, phải có bước tiếp tục/quay lại tại bước nào đó.
+
+
+
+về phòng cách viết: không cần ghi các thông tin [...]
+```
+
+#### P-18.2 – Ghi chú, cảnh báo và danh mục conflict
+
+Prompt nguyên văn:
+
+```text
+bổ sung bước nhập ghi chú (bước này là tuỳ chọn)
+
+
+
+nếu lưu không thành công, còn các trường vi phạm hay chưa nhập, phải cảnh báo để người dùng biết (hiện đỏ các trường bắt buộc)
+
+
+
+bảng thanh toán có các kỳ theo tháng hoặc theo quý tuỳ theo hợp đồng. bổ sung bước chọn này.
+
+
+
+một số conflict nghiệp vụ có thể ảnh hưởng:
+
+
+
+| Vấn đề                                  | Phân loại và căn cứ TA-SPEC                                                               | Quyết định cần xác nhận                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Kỳ tháng/quý — OQ-01**                | **Mâu thuẫn:** §2 cho phép tháng/quý, PAY-01 quy định một bảng mỗi tháng.                 | Duy nhất theo tháng hay kỳ cấu hình? Bảng quý có chồng lấn bảng tháng không?                                   |
+| **Sửa sau từ chối — OQ-04, OQ-US03-07** | **Mâu thuẫn:** §3 đưa về Rejected, PAY-08 đưa về Draft.                                   | Về Draft ngay hay qua Rejected? Nếu qua Rejected, ai chuyển và khi nào? Chỉ chặn nhánh mở sửa bảng bị từ chối. |
+| **Lập lại sau hủy — OQ-US05-02**        | **Mơ hồ:** §4.5 cấm dùng lại bảng Cancelled; PAY-01 giới hạn duy nhất.                    | Có được tạo bảng mới cùng kỳ không? Không dùng lại bảng cũ chưa trả lời được câu này.                          |
+| **Phạm vi sửa Draft — OQ-US01-02**      | **Thiếu:** §4.1 cho sửa nhưng không nêu trường; §1 quy định nguồn chỉ đọc.                | Cần ma trận trường được sửa, trường server tính và điều kiện đọc lại nguồn/tính lại.                           |
+| **Chọn giá — OQ-US01-01**               | **Mơ hồ:** PAY-01 nói “phù hợp”, PAY-03 nói “tại thời điểm tính”.                         | Chọn giá theo mốc nào? Giá đổi giữa kỳ hoặc giữa xem trước và lưu thì xử lý ra sao?                            |
+| **Sinh dòng/đối soát — OQ-US01-04**     | **Thiếu:** §4.1 và PAY-02 chưa giải thích dữ liệu rỗng, nhiều bản ghi, đối soát một phần. | Cách gộp/tách dòng; kiểm tra đối soát ở cấp nào; dữ liệu thiếu khác sản lượng 0 thế nào?                       |
+| **Mốc Active — OQ-US01-05**             | **Mơ hồ:** PAY-01 chưa giải thích hiệu lực đối với kỳ quá khứ/một phần kỳ.                | Đánh giá tại lúc lập hay theo kỳ? Hợp đồng hết hiệu lực sau kỳ có được lập bù không?                           |
+| **Tiền/quyền/hiệu năng**                | **Thiếu:** §4.1, PAY-03, §2 và §6.                                                        | Chốt OQ-US03-03 về làm tròn/thuế; OQ-US01-03 về phạm vi quyền; OQ-US01-06 về cách đo ≤3 giây với <200 dòng.    |
+```
+
+#### P-18.3 – Xác nhận chống chồng lấn và giá Active
+
+Prompt nguyên văn:
+
+```text
+bảng conflict:
+
+- bảng thanh toán hoặc là cho quý hoặc cho tháng, giả sử nếu chọn theo quý, thì không không được phép lập theo tháng. ví dụ tháng 1 lập theo tháng, thì từ tháng 2 và 3 không được lập theo quý, nếu tháng tư lập theo quý, thì tháng 5 6 thì không được lập theo tháng.
+- bảng giá thay đổi trước khi lưu: nếu bảng giá được active ngay thì dùng bảng active. nghĩa là bảng sẽ dùng bảng giá active.
+```
+
+#### P-18.4 – Yêu cầu ghi file và chuyển chức năng sang v2
+
+Prompt nguyên văn được lưu dưới dạng chuỗi JSON; ký tự đóng ngoặc của liên kết dùng escape Unicode để bộ kiểm tra liên kết không diễn giải đường dẫn trong dữ liệu prompt thành đường dẫn tương đối của nhật ký. Giải mã JSON khôi phục nguyên văn.
+
+```json
+"về các conflict: bổ sung các conflict (lúc chưa xác nhận) vào bảng open question [open-questions-v1.md\u005d(docs/analysis/payment-management/v1/open-questions-v1.md) cho phần us-01\n\nphần chức năng: triển khai v2, bao gồm đặc tả và sequence diagram. "
+```
+
+Kiểm chứng P-18:
+
+- `& C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe -X utf8 scripts/verify_agent_config.py` → `RESULT: PASS (0 failed checks)`. `git diff --check` → exit 0; Git chỉ cảnh báo chuyển LF/CRLF của nhật ký, không có lỗi whitespace.
+- `java -jar C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -checkonly docs/design/payment-management/v2/diagrams/seq-us-01-v2.puml` → exit 0; thay bằng `-tsvg` → exit 0, tạo SVG cùng tên. SVG baseline US04 v2 cũng được kết xuất từ nguồn đã đổi version.
+- QA PNG: cùng jar, `-DPLANTUML_LIMIT_SIZE=24000 -tpng -o <TEMP>/codex-us01-v2-qa` → exit 0; xem bằng view_image, kiểm tra bố cục tổng thể. PNG tạm không đưa vào repo. Sơ đồ có vòng bao nhập/xem trước/lưu và thử lại, không chỉ dùng thông báo để thay vòng quay lại.
+- Script Python qua stdin: PASS — 30 AC không trùng; 21 nhánh thay thế/lỗi có vị trí trong sequence và AC; 22 OQ v2 không trùng ID; bảng Markdown và liên kết cục bộ của các tài liệu mới hợp lệ. Đã so hash và nội dung: SYS/sequence/SVG v1, nguồn nghiệp vụ, src/ và review giữ nguyên; ba dòng OQ-US05 v2 cùng tài liệu US05 đã có giữ nguyên; OQ v1 giữ ID, lựa chọn và trạng thái/câu trả lời trước xác nhận.
+- Chưa chạy ứng dụng, test tích hợp DB/interface nguồn, đo NFR-PAY-02 hoặc kiểm chứng atomic liên module. Những phần này không được suy ra từ việc render/kiểm tra tài liệu thành công.
+
+### P-19 – Phản hồi phiên/quyền lúc xem trước và cập nhật câu trả lời US-PAY-01 v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace, chờ nhóm điền họ tên |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; Java 27.0.1; PlantUML 1.2024.3 |
+| Vai trò / skill / version | ba rồi design / sys-spec, sequence-diagram, naming-versioning / v2 |
+| Nguồn / phạm vi | SYS/OQ/sequence/catalogue US-01 v2 hiện có và câu trả lời người dùng bên dưới; TA-SPEC §1, §2, §4.1, PAY-01..03, §6 giữ nguyên làm căn cứ gốc. Không sửa v1, tài liệu nguồn, src/, review hoặc file lịch sử chat của người dùng. |
+| File đầu ra | [SYS](../analysis/payment-management/v2/sys-us-01-v2.md), [OQ](../analysis/payment-management/v2/open-questions-v2.md), [sequence](../design/payment-management/v2/diagrams/seq-us-01-v2.puml), SVG cùng tên, [danh mục](../design/payment-management/v2/03-detailed-design-v2.md) và mục nhật ký này. |
+| Phần phiên/quyền | A6.1 tách 401 hết phiên / 403 mất quyền khi preview hoặc thử lại; có thông báo, khóa/đóng form và điểm mở lại bước 1. Toàn bộ tra trùng/giá/sản lượng nằm trong nhánh authResult=OK, không tiếp tục xử lý nguồn sau khi từ chối. |
+| Quyền một người | Giữ rõ là đề xuất người dùng yêu cầu: NVKD chỉ lập trên hợp đồng được giao, sửa Draft chỉ khi chính mình tạo. OQ-US01-03 không được chuyển thành chính sách khách hàng đã duyệt; không suy ra mỗi hợp đồng chỉ có một người được giao hoặc chính sách khi người phụ trách đổi. |
+| Trường / nguồn / dữ liệu bắt buộc | Khóa sản lượng, đơn giá, hợp đồng và khách hàng ở UI lẫn server; q/p từ bảng sản lượng/bảng giá, không nhập thủ công. Đồng bộ đơn giá Active do hệ thống vẫn hợp lệ. Chỉ bật lưu khi đủ trường bắt buộc; request bỏ qua UI vẫn bị kiểm tra. Ghi chú vẫn tùy chọn; các trường Draft khác còn cần ma trận. |
+| Thuế / giá | Thuế tiếp tục là OQ-US03-03 cần hỏi khách hàng; làm tròn chưa có câu trả lời mới. Hiểu đúng câu cuối là điều kiện tạo bảng giá lúc hợp đồng còn hiệu lực, không đổi thành “tạo bảng thanh toán”. Module thanh toán chỉ đọc/xác minh bằng chứng nguồn, không thiết kế CRUD bảng giá. Interface TO-BE phải cung cấp bằng chứng, chưa tuyên bố có trong AS-IS. |
+| ID / phần AI viết | Giữ ID OQ/AC cũ; thêm AC-US01-31..34, A6.1/A7.3/A11.2/AU4.2/AU4.3. AI sửa tài liệu và hình; chưa commit, chưa triển khai ứng dụng/test DB/interface hay đo hiệu năng. |
+| Kiểm chứng | Kết quả thực tế ghi cuối mục này. |
+
+Prompt nguyên văn:
+
+```text
+Thiếu phản hồi khi phiên hết hạn/mất quyền lúc xem trước.
+
+
+
+trả lời cho các câu hỏi mở:
+
+- nvkd chỉ lập bảng trên hợp đồng được giao. không được sửa draft do người khác tạo. chổ này ghi chú lại là đề xuất theo hướng chỉ 1 người thực hiện.
+- các trường quan trọng như: sản lượng, đơn giá, thông tin hợp đồng, thông tin khách hàng không được phép thay đổi.
+- sản lượng và đơn giá ánh xạ từ bảng sản lượng và bảng giá, không phải nhập thủ công.
+- chỉ khi các trường bắt buộc được điền đầy đủ mới cho phép lập
+- thuế cần giữ ở câu hỏi mở để xác nhận lại với khách hàng.
+- bảng giá bắt buộc phải được lập khi hợp đồng còn hiệu lực.
+```
+
+Kiểm chứng P-19:
+
+- `java -jar C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -checkonly docs/design/payment-management/v2/diagrams/seq-us-01-v2.puml` → exit 0; thay `-checkonly` bằng `-tsvg` → exit 0, SVG XML hợp lệ. Chạy thêm `-DPLANTUML_LIMIT_SIZE=24000 -tpng -o <TEMP>/codex-us01-p19-qa` → exit 0 và xem hình bằng view_image để kiểm tra bố cục tổng thể. PNG tạm không ghi vào repo.
+- Script Python stdin → PASS: 34 AC không trùng; 26 nhánh có AC/đoạn sequence; 5 OQ được cập nhật khớp trạng thái, ảnh hưởng và câu trả lời giữa SYS/OQ chung; 22 OQ giữ ID không trùng; bảng Markdown và liên kết cục bộ hợp lệ.
+- Đối chiếu luồng preview → PASS: 401/403 có thông báo và khóa/đóng form; không có lệnh đọc giá/sản lượng/tra trùng trong nhánh từ chối; các lệnh đó nằm trong authResult=OK và kiểm tra đủ trường. Đối chiếu nội dung → thuế vẫn cần khách hàng xác nhận, quyền một người vẫn là đề xuất, trường nguồn/điều kiện tạo giá được nêu rõ.
+- So hash trước/sau → v1, nguồn TA, src/, US khác, review và lichsuchat-us-01.txt giữ nguyên. `git diff --check` → exit 0, chỉ có cảnh báo LF/CRLF của nhật ký.
+- `& C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe -X utf8 scripts/verify_agent_config.py` → `RESULT: FAIL (1 failed checks)`. Lỗi duy nhất: `docs/analysis/payment-management/v2/lichsuchat-us-01.txt` có sẵn trước lượt P-19 không thuộc quy ước tên của v2. Các kiểm tra khác PASS; không đổi tên/xóa file người dùng hoặc sửa checker để bỏ qua lỗi.
+- Không có kiểm thử chạy ứng dụng, xác minh dữ liệu nguồn tạo bảng giá, tích hợp auth/DB hoặc phép đo NFR trong lượt tài liệu này.
+
+### P-20 – Lưu báo cáo mục 2 riêng cho US-PAY-01
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15 |
+| Phạm vi | Lưu bảng tổng hợp đã thống nhất trong chat: vấn đề phát triển chức năng, vị trí/căn cứ, phân loại, phân tích/xử lý theo review người dùng và đánh giá AI thiếu/sai/thừa/đủ. |
+| Đầu vào | Phản hồi ngay trước P-20 trong chat; SYS/OQ/sequence v2; các xác nhận P-18/P-19; hai nhận xét kỹ thuật R04-02/03 còn ghi nhận. |
+| File đầu ra | [baocao-muc2-us-01.md](../analysis/payment-management/v2/baocao-muc2-us-01.md), tên và vị trí đúng yêu cầu rõ ràng của người dùng. Không tự đổi sang tên chuẩn khác hoặc chuyển thư mục review. |
+| Phần AI viết / nhóm sửa | AI lưu nội dung đã trình bày, chuyển cách xưng hô sang báo cáo và bổ sung liên kết nguồn. Cột đánh giá vẫn là AI tự đối chiếu theo yêu cầu, chưa giả làm đánh giá/phê duyệt của nhóm. Không ghi các vấn đề tạo version sớm, tên file hay cách trình bày thành vấn đề nghiệp vụ. |
+| Bảo toàn | File đích được đọc trước và đang trống. Không sửa TXT, lịch sử chat, SYS/OQ/sequence hoặc báo cáo review trong lượt này; chỉ thêm mục nhật ký này. |
+| Kiểm chứng | Python stdin: PASS — file UTF-8, 20 vấn đề yêu cầu/phân tích và 2 vấn đề kỹ thuật, hai bảng đủ 5 cột, liên kết cục bộ hợp lệ. `git diff --check`: exit 0, chỉ cảnh báo LF/CRLF của nhật ký. Checker workspace: `FAIL (1 failed checks)` ở quy tắc tên file, liệt kê `baocao-muc2-us-01.md` (tên người dùng chỉ định rõ) và `lichsuchat-us-01.txt` có sẵn; giữ nguyên tên yêu cầu, không sửa checker để bỏ qua. |
+
+Prompt nguyên văn, lưu dưới dạng chuỗi JSON để không diễn giải liên kết trong dữ liệu prompt thành liên kết tương đối của nhật ký:
+
+```json
+"lưu vào file [baocao-muc2-us-01.md\u005d(docs/analysis/payment-management/v2/baocao-muc2-us-01.md) "
+```

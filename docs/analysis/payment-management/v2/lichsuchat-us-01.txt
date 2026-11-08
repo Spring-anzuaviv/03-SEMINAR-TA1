@@ -1,0 +1,254 @@
+ĐẶC TẢ NGHIỆP VỤ  
+1. Mục đích và phạm vi 
+Công ty cung cấp dịch vụ cho khách hàng theo hợp đồng. Định kỳ, nhân viên kinh doanh lập 
+bảng thanh toán dựa trên sản lượng thực tế nhân đơn giá trong bảng giá. Bảng thanh toán 
+phải được duyệt trước khi chuyển kế toán xuất hóa đơn. 
+Module này chỉ bao gồm: lập, trình duyệt, duyệt/từ chối, điều chỉnh và hủy bảng thanh toán. 
+Quản lý hợp đồng, bảng giá và sản lượng là module khác; module này chỉ đọc dữ liệu từ 
+chúng. 
+2. Thuật ngữ và vai trò 
+Ý nghĩa 
+Thuật ngữ / vai trò 
+NVKD 
+Nhân viên kinh doanh, lập và trình duyệt bảng 
+KTT 
+Kế toán trưởng 
+GĐKD 
+Giám đốc kinh doanh 
+Kỳ thanh toán 
+Khoảng thời gian tính tiền, là tháng hoặc quý tùy cấu hình của 
+từng hợp đồng 
+Sản lượng đã đối soát Sản lượng đã được hai bên xác nhận 
+Dòng thanh toán 
+Một dịch vụ trong bảng: sản lượng, đơn giá, thành tiền 
+3. Trạng thái bảng thanh toán 
+Bảng thanh toán có các trạng thái: Draft, PendingApproval, Approved, Rejected, 
+Cancelled. 
+Luồng chính: Draft → PendingApproval → Approved. Khi bị từ chối, bảng chuyển sang 
+Rejected. Draft có thể chuyển sang Cancelled. 
+4. Yêu cầu chức năng 
+4.1 US-PAY-01: Lập bảng thanh toán (NVKD) 
+NVKD chọn hợp đồng và kỳ thanh toán. Hệ thống tự sinh các dòng thanh toán từ sản lượng 
+và bảng giá, tính tổng tiền, lưu ở trạng thái Draft. NVKD được phép chỉnh sửa bảng khi còn 
+ở Draft. 
+
+5. Quy tắc nghiệp vụ 
+Mã 
+Nội dung 
+PAY-01 
+Chỉ lập bảng thanh toán cho hợp đồng đang hiệu lực (Active) và có bảng 
+giá phù hợp. Mỗi hợp đồng chỉ có một bảng thanh toán cho mỗi tháng. 
+PAY-02 
+Sản lượng của kỳ phải ở trạng thái "Đã đối soát" trước khi lập bảng. 
+PAY-03 
+Thành tiền mỗi dòng = sản lượng × đơn giá tại thời điểm tính. 
+PAY-04 
+Khi trình duyệt, hệ thống chặn nếu tổng tiền âm hoặc thiếu dòng dịch vụ 
+bắt buộc. Hệ thống chống thao tác trình duyệt trùng. 
+PAY-05 
+Bảng thanh toán đã Approved không được sửa dưới bất kỳ hình thức nào. 
+PAY-06 
+Bảng có tổng tiền trên 500 triệu đồng phải do GĐKD duyệt; các bảng còn 
+lại do KTT duyệt. 
+PAY-07 
+Người lập bảng không được duyệt bảng do chính mình lập. 
+PAY-08 
+Khi từ chối phải nhập lý do; sau khi bị từ chối, bảng quay về trạng thái 
+Draft để NVKD chỉnh sửa và trình lại. \
+
+6. Yêu cầu phi chức năng 
+• Mọi thay đổi trạng thái và mọi điều chỉnh phải được ghi audit log (ai, lúc nào, thay 
+đổi gì). 
+• Chức năng lập bảng phải phản hồi trong vòng 3 giây với hợp đồng có dưới 200 dòng.
+
+thực hiện phân tích yêu cầu trên và thiết kế cho chức năng lập bảng thanh toán này.
+
+yêu cầu đầu ra: 
+- file đặc tả hệ thống: docs\analysis\payment-management\v1spec-us-01-v1.md
+- thiết kế sequence diagram: docs\design\payment-management\v1\diagrams/seq-us-01-v1.puml
+- các câu hỏi mở mổ sung vào: D:\PTUDHTTT\03-SEMINAR-TA1\docs\analysis\payment-management\v1\open-questions-v1.md theo format của nội dung đã tồn tại.
+
+Đã hoàn thành:
+
+- [Đặc tả hệ thống](D:/PTUDHTTT/03-SEMINAR-TA1/docs/analysis/payment-management/v1/sys-us-01-v1.md): luồng lập, sửa Draft, nhánh lỗi và 20 acceptance criteria.
+- [Sequence PlantUML](D:/PTUDHTTT/03-SEMINAR-TA1/docs/design/payment-management/v1/diagrams/seq-us-01-v1.puml), kèm [bản SVG](D:/PTUDHTTT/03-SEMINAR-TA1/docs/design/payment-management/v1/diagrams/seq-us-01-v1.svg).
+- [Câu hỏi mở](D:/PTUDHTTT/03-SEMINAR-TA1/docs/analysis/payment-management/v1/open-questions-v1.md): bổ sung 7 OQ, giữ nguyên các câu hỏi cũ.
+
+Kiểm tra workspace đạt PASS; PlantUML kiểm tra cú pháp và kết xuất thành công. Các điểm chưa rõ vẫn chờ xác nhận; chưa đo hiệu năng.
+
+
+
+cách viết và hiểu quy trình chưa đúng, chức năng lập bảng thanh toán bắt đầu từ lúc nhân viên bấm vào nút lập bảng thanh toán, sau đó thực hiện các thao tác khác như kiểm tra, nhập thông tin, chọn kỳ thanh toán, bảng giá, ...
+
+hãy thực hiện thiết kế lại. quy trình chưa đúng
+
+Bản trước bắt đầu khi client gửi yêu cầu tạo bảng, nên đã bỏ mất phần tương tác trên màn hình. Luồng mới sẽ là: **bấm Lập bảng → mở biểu mẫu → chọn hợp đồng → nhập/chọn kỳ → chọn bảng giá phù hợp → xem các dòng và tổng tiền → lưu Draft**.
+
+Tôi sẽ đặt bản thiết kế lại ở **v2** để giữ bản v1 đã được review. Việc chọn bảng giá sẽ theo hướng dẫn của bạn; hệ thống vẫn kiểm tra tính phù hợp của bảng giá và tự tính tiền từ dữ liệu nguồn.
+
+lưu ý, đây vẫn chỉ là v1, khi nào tôi yêu cầu mới thực hiện thành v2.
+
+Đã thiết kế lại **trong v1**, giữ nguyên các file v2 đã có.
+
+Luồng mới: **Bấm “Lập bảng thanh toán” → mở biểu mẫu → chọn hợp đồng → nhập/chọn kỳ → chọn bảng giá → xem dòng và tổng tiền → kiểm tra → lưu Draft**.
+
+Đã cập nhật:
+
+- [Đặc tả hệ thống](D:/PTUDHTTT/03-SEMINAR-TA1/docs/analysis/payment-management/v1/sys-us-01-v1.md)
+- [Sequence](D:/PTUDHTTT/03-SEMINAR-TA1/docs/design/payment-management/v1/diagrams/seq-us-01-v1.puml) và [SVG](D:/PTUDHTTT/03-SEMINAR-TA1/docs/design/payment-management/v1/diagrams/seq-us-01-v1.svg)
+- [OQ và vị trí theo bước mới](D:/PTUDHTTT/03-SEMINAR-TA1/docs/analysis/payment-management/v1/open-questions-v1.md)
+
+Kiểm tra workspace, cú pháp và kết xuất PlantUML đều đạt.
+
+chưa thực hiện thay đổi file, chỉ thực hiện kiểm tra theo yêu cầu và review của tôi.
+
+chỉnh sửa đặc tả hiện tại:
+- bước 3: bảng thanh toán được lập từ màn hình xem chi tiết hợp đồng. vì vậy không có bước chọn hợp đồng này mà sẽ tự lấy từ màn hình hợp đồng.
+- bước 5: ghi rõ kiểm tra trạng thái active (có hiệu lực).
+- bước 8: chỉ có 1 bảng giá có hiệu lực tại một thời điểm. bảng giá này được gắn cố định với hợp đồng. khi thanh toán dùng bảng giá gắn cố định này. nếu bảng giá có thay đổi (đã thoả thuận giữa 2 bên) trong quá trình thực hiện lập bảng thanh toán (trạng thái draft) , thì bảng thanh toán phải sử dụng bảng đang có hiệu lực.
+- khi thực hiện xong, phải có thông báo dù thất bại hay thành công.
+- do có một số yếu tố thay đổi, do đó các bước trong đặc tả cũng cần phải điều chỉnh lại.
+- trong dòng thay thế và dòng lỗi, phải có bước tiếp tục/quay lại tại bước nào đó.
+về phòng cách viết: không cần ghi các thông tin [...]
+
+Tôi chưa thay đổi file. Bản hiện tại cần bỏ bước chọn hợp đồng và chọn bảng giá; hợp đồng được lấy từ màn hình chi tiết, còn bảng giá được hệ thống tự xác định.
+
+Luồng cơ bản đề nghị sau khi đánh số lại:
+
+| Bước | Tác nhân | Nội dung |
+|---|---|---|
+| 1 | NVKD | Tại màn hình chi tiết hợp đồng, bấm **Lập bảng thanh toán**. |
+| 2 | Hệ thống | Lấy hợp đồng từ màn hình hiện tại; kiểm tra quyền lập bảng, hợp đồng tồn tại và có trạng thái **Active — Có hiệu lực**. |
+| 3 | Hệ thống | Hiển thị biểu mẫu lập bảng với thông tin hợp đồng được điền sẵn và vùng nhập kỳ thanh toán. |
+| 4 | NVKD | Nhập hoặc chọn kỳ thanh toán. |
+| 5 | Hệ thống | Kiểm tra kỳ phù hợp với cấu hình hợp đồng và điều kiện không lập trùng bảng thanh toán. |
+| 6 | Hệ thống | Đọc sản lượng của kỳ, kiểm tra trạng thái **Đã đối soát**; tự lấy bảng giá đang có hiệu lực gắn với hợp đồng. |
+| 7 | Hệ thống | Sinh các dòng thanh toán, tính thành tiền từng dòng bằng sản lượng × đơn giá và tính tổng tiền. |
+| 8 | Hệ thống | Hiển thị bảng giá đang áp dụng, các dòng thanh toán và tổng tiền để NVKD kiểm tra. |
+| 9 | NVKD | Kiểm tra thông tin và bấm **Lưu nháp**. |
+| 10 | Hệ thống | Kiểm tra lại các điều kiện lập bảng và bảng giá đang có hiệu lực. Nếu bảng giá đã thay đổi, thực hiện nhánh cập nhật giá bên dưới. |
+| 11 | Hệ thống | Lưu bảng ở trạng thái **Draft** và ghi audit. |
+| 12 | Hệ thống | Thông báo **Lập bảng thanh toán thành công**, hiển thị bảng vừa lưu và kết thúc. |
+
+Các kiểm tra Active, chống lập trùng, đối soát, công thức tính và audit giữ căn cứ từ TA-SPEC §4.1, §5 PAY-01..03 và §6. Điểm vào từ chi tiết hợp đồng, cách xác định bảng giá và thông báo kết quả được điều chỉnh theo review của bạn.
+
+Dòng thay thế và dòng lỗi cần có điểm tiếp tục rõ ràng:
+
+| Tình huống | Xử lý và thông báo | Tiếp tục / quay lại |
+|---|---|---|
+| Không đủ quyền, hợp đồng không tồn tại hoặc không Active tại bước 2 | Thông báo nguyên nhân không thể lập bảng. | Trở về màn hình chi tiết hợp đồng, kết thúc lượt lập. Khi đủ điều kiện, thực hiện lại từ bước 1. |
+| Kỳ thiếu, không hợp lệ hoặc đã có bảng thanh toán tại bước 5 | Thông báo lỗi tương ứng tại trường kỳ thanh toán. | Quay lại bước 4. |
+| Sản lượng chưa đối soát tại bước 6 | Thông báo chưa thể lập bảng cho kỳ này. | Quay lại bước 4 để chọn kỳ khác, hoặc thoát về chi tiết hợp đồng. |
+| Không lấy được bảng giá có hiệu lực tại bước 6 | Thông báo không thể lập bảng do chưa xác định được bảng giá áp dụng. | Trở về chi tiết hợp đồng; khi dữ liệu được xử lý, thực hiện lại từ bước 1. |
+| Lỗi đọc dữ liệu tại bước 6 | Thông báo tải dữ liệu thất bại, giữ kỳ đã nhập. | Thử lại từ bước 6 hoặc thoát về chi tiết hợp đồng. |
+| NVKD đổi kỳ sau khi xem kết quả | Xóa kết quả tính phụ thuộc kỳ cũ. | Quay lại bước 4, sau đó kiểm tra và tính lại. |
+| Bảng giá thay đổi trước khi lưu tại bước 10 | Lấy bảng giá mới đang có hiệu lực, tính lại dòng và tổng; thông báo bảng giá và số tiền đã được cập nhật. | Quay lại bước 8 để NVKD kiểm tra trước khi lưu lại. |
+| Điều kiện lập bảng không còn hợp lệ tại bước 10 | Thông báo điều kiện không đạt. | Sai kỳ/trùng kỳ: quay bước 4. Hợp đồng không còn Active: trở về chi tiết hợp đồng và kết thúc. |
+| Lưu thất bại, xác định chưa lưu tại bước 11 | Thông báo lưu thất bại, giữ dữ liệu trên biểu mẫu. | Quay lại bước 9; lần lưu tiếp theo vẫn kiểm tra lại từ bước 10. |
+| Chưa xác định được kết quả lưu | Thông báo chưa xác định kết quả, không báo chắc chắn thất bại. | Kiểm tra kết quả lưu trước; đã lưu thì tiếp tục bước 12, xác định chưa lưu thì quay bước 9. |
+| NVKD đóng biểu mẫu trước khi lưu | Thông báo dữ liệu chưa được lưu. | Trở về màn hình chi tiết hợp đồng, kết thúc. |
+
+Phần sửa Draft cũng phải đối chiếu bảng giá đang có hiệu lực, tính lại tiền khi giá thay đổi và ghi audit cho thay đổi đó. Nội dung OQ về việc chọn nhiều bảng giá hoặc giữ giá cũ cần thu hẹp theo thông tin bạn vừa làm rõ; các câu hỏi về kỳ, quyền và làm tròn vẫn giữ riêng.
+
+Còn một điểm cần xác định: **khi bảng giá thay đổi, mọi Draft phải tự cập nhật ngay, kể cả khi không ai mở bảng, hay cập nhật khi NVKD mở/tính lại/lưu Draft?** Yêu cầu dùng giá đang có hiệu lực đã rõ; thời điểm đồng bộ này ảnh hưởng đến luồng sửa Draft.
+
+bổ sung bước nhập ghi chú (bước này là tuỳ chọn)
+
+nếu lưu không thành công, còn các trường vi phạm hay chưa nhập, phải cảnh báo để người dùng biết (hiện đỏ các trường bắt buộc)
+
+bảng thanh toán có các kỳ theo tháng hoặc theo quý tuỳ theo hợp đồng. bổ sung bước chọn này.
+
+một số conflict nghiệp vụ có thể ảnh hưởng:
+Vấn đề	Phân loại và căn cứ TA-SPEC	Quyết định cần xác nhận
+Kỳ tháng/quý — OQ-01	Mâu thuẫn: §2 cho phép tháng/quý, PAY-01 quy định một bảng mỗi tháng.	Duy nhất theo tháng hay kỳ cấu hình? Bảng quý có chồng lấn bảng tháng không?
+Sửa sau từ chối — OQ-04, OQ-US03-07	Mâu thuẫn: §3 đưa về Rejected, PAY-08 đưa về Draft.	Về Draft ngay hay qua Rejected? Nếu qua Rejected, ai chuyển và khi nào? Chỉ chặn nhánh mở sửa bảng bị từ chối.
+Lập lại sau hủy — OQ-US05-02	Mơ hồ: §4.5 cấm dùng lại bảng Cancelled; PAY-01 giới hạn duy nhất.	Có được tạo bảng mới cùng kỳ không? Không dùng lại bảng cũ chưa trả lời được câu này.
+Phạm vi sửa Draft — OQ-US01-02	Thiếu: §4.1 cho sửa nhưng không nêu trường; §1 quy định nguồn chỉ đọc.	Cần ma trận trường được sửa, trường server tính và điều kiện đọc lại nguồn/tính lại.
+Chọn giá — OQ-US01-01	Mơ hồ: PAY-01 nói “phù hợp”, PAY-03 nói “tại thời điểm tính”.	Chọn giá theo mốc nào? Giá đổi giữa kỳ hoặc giữa xem trước và lưu thì xử lý ra sao?
+Sinh dòng/đối soát — OQ-US01-04	Thiếu: §4.1 và PAY-02 chưa giải thích dữ liệu rỗng, nhiều bản ghi, đối soát một phần.	Cách gộp/tách dòng; kiểm tra đối soát ở cấp nào; dữ liệu thiếu khác sản lượng 0 thế nào?
+Mốc Active — OQ-US01-05	Mơ hồ: PAY-01 chưa giải thích hiệu lực đối với kỳ quá khứ/một phần kỳ.	Đánh giá tại lúc lập hay theo kỳ? Hợp đồng hết hiệu lực sau kỳ có được lập bù không?
+Tiền/quyền/hiệu năng	Thiếu: §4.1, PAY-03, §2 và §6.	Chốt OQ-US03-03 về làm tròn/thuế; OQ-US01-03 về phạm vi quyền; OQ-US01-06 về cách đo ≤3 giây với <200 dòng.
+
+
+Tôi tiếp tục rà soát trong chat, **chưa sửa file**.
+
+Luồng được bổ sung như sau:
+
+| Bước | Tác nhân | Nội dung |
+|---|---|---|
+| 1 | NVKD | Tại màn hình chi tiết hợp đồng, bấm **Lập bảng thanh toán**. |
+| 2 | Hệ thống | Lấy hợp đồng từ màn hình hiện tại; kiểm tra quyền, hợp đồng tồn tại và trạng thái **Active — Có hiệu lực**. |
+| 3 | Hệ thống | Hiển thị biểu mẫu với thông tin hợp đồng được điền sẵn, loại kỳ theo cấu hình hợp đồng và ô ghi chú tùy chọn. |
+| 4 | NVKD | Chọn kỳ thanh toán: **tháng và năm** nếu hợp đồng thanh toán theo tháng; **quý và năm** nếu hợp đồng thanh toán theo quý. |
+| 5 | NVKD | Nhập ghi chú nếu cần; có thể để trống. |
+| 6 | Hệ thống | Kiểm tra kỳ đã được nhập đầy đủ, phù hợp cấu hình hợp đồng và không vi phạm quy tắc lập trùng đã được xác nhận. |
+| 7 | Hệ thống | Đọc sản lượng của kỳ, kiểm tra Đã đối soát; lấy bảng giá đang có hiệu lực gắn với hợp đồng. |
+| 8 | Hệ thống | Sinh các dòng thanh toán, tính thành tiền từng dòng và tổng tiền. |
+| 9 | Hệ thống | Hiển thị kỳ, bảng giá áp dụng, các dòng thanh toán, tổng tiền và ghi chú để NVKD kiểm tra. |
+| 10 | NVKD | Kiểm tra thông tin và bấm **Lưu nháp**. |
+| 11 | Hệ thống | Kiểm tra lại dữ liệu bắt buộc, các điều kiện nghiệp vụ và bảng giá đang có hiệu lực. |
+| 12 | Hệ thống | Lưu bảng ở trạng thái **Draft**, gồm ghi chú nếu có; ghi audit. |
+| 13 | Hệ thống | Thông báo **Lập bảng thanh toán thành công**, hiển thị bảng vừa lưu và kết thúc. |
+
+Loại kỳ được lấy theo cấu hình hợp đồng tại TA-SPEC §2. NVKD chọn kỳ cụ thể tương ứng; không mặc định được tự chuyển hợp đồng từ thanh toán tháng sang quý.
+
+Các nhánh cần bổ sung hoặc điều chỉnh:
+
+| Tình huống | Xử lý và cảnh báo | Điểm tiếp tục |
+|---|---|---|
+| Thiếu tháng/quý hoặc năm; kỳ không hợp lệ tại bước 6 hoặc 11 | Thông báo chưa thể lưu; tô đỏ trường thiếu hoặc vi phạm và hiển thị lý do ngay cạnh trường. Giữ thông tin đã nhập. | Quay bước 4; sửa xong kiểm tra lại từ bước 6. |
+| Ghi chú để trống | Không báo lỗi vì đây là trường tùy chọn. | Tiếp tục bước 6. |
+| NVKD sửa ghi chú sau khi xem bảng | Giữ các dữ liệu tính tiền nếu chỉ thay đổi ghi chú. | Quay bước 5, sau đó tiếp tục kiểm tra và lưu. |
+| NVKD đổi kỳ sau khi xem bảng | Xóa kết quả tính phụ thuộc kỳ cũ. | Quay bước 4, kiểm tra và sinh lại dữ liệu từ bước 6. |
+| Kỳ đã có bảng thanh toán theo quy tắc duy nhất được xác nhận | Thông báo kỳ bị trùng, đánh dấu trường kỳ. | Quay bước 4. |
+| Bảng giá thay đổi trước khi lưu | Lấy bảng giá đang có hiệu lực, tính lại tiền và thông báo kết quả đã thay đổi. | Quay bước 9 để NVKD kiểm tra lại. |
+| Lưu thất bại do lỗi dữ liệu | Thông báo lưu thất bại, tô đỏ đúng trường vi phạm, nêu lý do và giữ dữ liệu. | Quay bước nhập tương ứng: bước 4 hoặc 5; sau khi sửa, thực hiện lại các kiểm tra liên quan. |
+| Lưu thất bại do lỗi hệ thống | Hiển thị thông báo lỗi chung; không đánh dấu sai các trường hợp lệ. | Khi xác định chưa lưu, quay bước 10 để thử lại. Nếu chưa rõ kết quả lưu, phải kiểm tra kết quả trước khi gửi lại. |
+
+Với bảng conflict bạn đưa, cần giữ các điểm sau khi chỉnh đặc tả:
+
+- **OQ-01:** tháng/quý đã rõ về cách chọn kỳ; vẫn chưa chốt phạm vi duy nhất và chồng lấn tháng–quý.
+- **OQ-US01-01:** đã rõ bảng giá gắn với hợp đồng và phải dùng giá đang có hiệu lực. Phần còn mở là thời điểm đồng bộ khi giá thay đổi đối với Draft đã lưu, đặc biệt khi không ai đang mở bảng.
+- **OQ-US01-02:** đã rõ ghi chú được nhập tùy chọn khi lập mới; chưa tự suy ra toàn bộ quyền sửa các trường của Draft.
+- Các OQ còn lại tiếp tục giữ phạm vi ảnh hưởng như bạn liệt kê. Riêng OQ-04/OQ-US03-07 chỉ ảnh hưởng mở sửa bảng bị từ chối, không chặn luồng lập mới.
+
+Khi cập nhật sau này, cần đồng bộ số bước trong đặc tả, nhánh lỗi, AC, vị trí OQ và sequence; bỏ các nhãn trong ngoặc vuông khỏi phần mô tả quy trình theo yêu cầu của bạn.
+
+bảng conflict:
+- bảng thanh toán hoặc là cho quý hoặc cho tháng, giả sử nếu chọn theo quý, thì không không được phép lập theo tháng. ví dụ tháng 1 lập theo tháng, thì từ tháng 2 và 3 không được lập theo quý, nếu tháng tư lập theo quý, thì tháng 5 6 thì không được lập theo tháng.
+- bảng giá thay đổi trước khi lưu: nếu bảng giá được active ngay thì dùng bảng active. nghĩa là bảng sẽ dùng bảng giá active.
+
+
+Tôi ghi nhận hai quy tắc sau trong phần review, **chưa sửa file**.
+
+**OQ-01 — Không chồng lấn kỳ tháng và quý**
+
+Với cùng hợp đồng, không được lập bảng quý nếu đã có bảng tháng thuộc quý đó; ngược lại, đã có bảng quý thì không được lập bảng tháng nằm trong quý đó.
+
+| Bảng đã có | Yêu cầu lập tiếp | Kết quả |
+|---|---|---|
+| Tháng 1 | Quý I, bao gồm tháng 1–3 | Không được phép |
+| Tháng 1 | Tháng 2 hoặc tháng 3 | Không chồng lấn với tháng 1; vẫn kiểm tra cấu hình hợp đồng và trùng từng tháng |
+| Quý II, bao gồm tháng 4–6 | Tháng 4, 5 hoặc 6 | Không được phép |
+
+Như vậy, kiểm tra trùng phải xét **khoảng thời gian được thanh toán**, không chỉ so sánh mã kỳ tháng hoặc quý. Trường hợp bảng cũ đã Cancelled vẫn thuộc OQ-US05-02, chưa được giải quyết bởi xác nhận này.
+
+**OQ-US01-01 — Dùng bảng giá Active khi lưu**
+
+Khi lưu, hệ thống phải lấy bảng giá **đang Active gắn với hợp đồng** để tính tiền:
+
+- Bảng giá mới đã Active trước khi lưu: dùng bảng giá mới.
+- Bảng giá mới chưa Active: tiếp tục dùng bảng giá hiện đang Active.
+- Nếu giá áp dụng khác lần xem trước: tính lại dòng và tổng tiền, thông báo cho NVKD biết kết quả thay đổi.
+
+Phần lựa chọn giá trước khi lưu đã được làm rõ; không còn phương án giữ bảng giá cũ đã hết hiệu lực để lưu Draft.
+
+Thiếu phản hồi khi phiên hết hạn/mất quyền lúc xem trước.
+
+trả lời cho các câu hỏi mở:
+- nvkd chỉ lập bảng trên hợp đồng được giao. không được sửa draft do người khác tạo. chổ này ghi chú lại là đề xuất theo hướng chỉ 1 người thực hiện.
+- các trường quan trọng như: sản lượng, đơn giá, thông tin hợp đồng, thông tin khách hàng không được phép thay đổi.
+- sản lượng và đơn giá ánh xạ từ bảng sản lượng và bảng giá, không phải nhập thủ công.
+- chỉ khi các trường bắt buộc được điền đầy đủ mới cho phép lập
+- thuế cần giữ ở câu hỏi mở để xác nhận lại với khách hàng.
+- bảng giá bắt buộc phải được lập khi hợp đồng còn hiệu lực.

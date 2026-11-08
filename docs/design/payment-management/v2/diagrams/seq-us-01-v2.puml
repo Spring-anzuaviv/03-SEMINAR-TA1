@@ -1,0 +1,397 @@
+@startuml seq-us-01-v2
+title Lập và sửa Draft từ hợp đồng (US-PAY-01) – v2
+' Phiên bản: v2 | Ngày: 08/11/2026 | AI: Codex / GPT-6 | Prompt: P-18, P-19
+' Đầu vào: sys-us-01-v2.md §1–4; open-questions-v2.md; xác nhận P-18.1..3.
+' Phạm vi: US-PAY-01, PAY-01..03, audit §6; không submit/approve/reject/adjust/cancel.
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: 08/11/2026 – PlantUML 1.2024.3 -checkonly và -tsvg thành công; SVG cùng tên.
+' QA: P-19 đã kiểm tra cú pháp, kết xuất SVG và xem PNG tại TEMP; chi tiết trong prompt-log.
+' Tên tạm và mã lỗi: 03-detailed-design-v2.md; chưa có class/API contract chính thức.
+' UI -> Service là lời gọi ứng dụng phía server, không chốt transport hay endpoint.
+' Đối chiếu SYS:
+'  1-3/A2: mở từ chi tiết HĐ, auth/Active, form cố định hợp đồng.
+'  4-9/A4/A6/A7/A7.1/A7.2/A8/A9: vòng nhập kỳ/ghi chú, tính xem trước, thử lại cùng dữ liệu.
+'  10-11/A11/A11.1: Lưu nháp, validation đỏ trường, kiểm tra giá Active, giá đổi quay 9.
+'  12/A12/A12.1/A12.2: khóa phạm vi hợp đồng, kiểm tra chồng lấn, bảng/dòng/audit cùng transaction.
+'  13: thông báo và kết thúc sau commit; A10: đóng form chưa lưu.
+'  K1: xác minh kết quả commit; U1-U6/AU1/AU3/AU4/AU4.1/AU5/AU5.1/AU5.2: vòng sửa Draft.
+' Mọi kết quả code dưới đây là giá trị enum loại trừ nhau; server không xét dữ liệu khi reader lỗi.
+' Các quyết định kỹ thuật có mục đích/thay thế/tác động và giới hạn trong 03-detailed-design-v2.md.
+' P-19: A6.1 phản hồi 401/403 lúc preview, không gọi giá/sản lượng sau từ chối.
+' P-19: A7.3/AU4.3 điều kiện lúc tạo bảng giá; A11.2/AU4.2 cấm ghi đè nguồn; quyền một người là đề xuất.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD" as U
+boundary "PaymentForm\nGiao diện" as UI
+control "PaymentService\nPhía server" as S
+participant "IContractReader\nChỉ đọc" as C
+participant "IPriceReader\nChỉ đọc" as P
+participant "IQuantityReader\nChỉ đọc" as Q
+participant "PaymentRepository" as R
+participant "AuditLog" as A
+database "PaymentDatabase\nĐề xuất" as DB
+
+note over UI, S
+  Hợp đồng lấy từ màn hình chi tiết; không chọn hợp đồng hay bảng giá trong form.
+  Kỳ tháng/năm hoặc quý/năm theo cấu hình; ghi chú tùy chọn.
+  Giá phải là Active gắn với hợp đồng khi lưu; nguồn chưa có hoặc nhiều Active là lỗi dữ liệu.
+  OQ-US01-04: ánh xạ dòng/đối soát một phần; OQ-US03-03: thuế/làm tròn còn mở.
+  OQ-US01-03: quyền; OQ-US01-05: hiệu lực theo kỳ; OQ-US01-06: cách đo NFR.
+  P-19 – Đề xuất một người: create trên hợp đồng được giao; update chỉ Draft do mình tạo.
+  Sản lượng/đơn giá/hợp đồng/khách hàng chỉ đọc; q/p ánh xạ từ nguồn, không nhập tay.
+  Chỉ bật Lưu nháp khi trường bắt buộc đủ; ghi chú trống hợp lệ, thuế còn hỏi khách hàng.
+  Bảng giá phải được lập lúc hợp đồng còn hiệu lực; reader cần bằng chứng lịch sử.
+end note
+
+alt NVKD lập mới
+  == Mở từ chi tiết hợp đồng ==
+  U -> UI : Bấm Lập bảng thanh toán (1)
+  UI -> S : openCreateForm(contractId từ màn hình)
+  S -> S : Kiểm tra phiên và quyền lập (2)
+  S -> C : getContract(contractId)
+  C --> S : contract / null / lỗi đọc
+  S -> S : Nếu đọc thành công: kiểm tra tồn tại và Active (Có hiệu lực)\nĐược giao hợp đồng theo đề xuất OQ-US01-03
+  alt openResult.code != OK
+    break A2 – Không thể mở lượt lập
+      S --> UI : result(code, message)
+      UI --> U : Thông báo lý do, về chi tiết hợp đồng\nKhi đủ điều kiện bắt đầu lại bước 1
+    end
+  else openResult.code = OK
+    S --> UI : contractInfo, periodConfig
+    UI --> U : Hiển thị form, hợp đồng cố định, kỳ và ghi chú tùy chọn (3)
+  end
+
+  == Vòng nhập, xem trước, lưu và phục hồi ==
+  loop formOpen and not saved – một sự kiện chủ động của NVKD mỗi lượt
+    U -> UI : Nhập kỳ/ghi chú, thử lại dữ liệu, Lưu nháp,\nđóng form hoặc kiểm tra kết quả lưu
+    alt event = nhập/chọn kỳ hoặc thử lại dữ liệu
+      UI -> UI : Giữ ghi chú; bỏ preview cũ khi kỳ đổi (4–5/A9)
+      UI -> S : preview(contractId, period, note)
+      S -> S : authenticateAndCheckRole()
+      opt sessionValid and role = NVKD
+        S -> C : getContractAuthorization(contractId, currentUser.id)
+        C --> S : assignment/access / sourceError
+        S -> S : authorizeCreateByAssignment()\nTheo đề xuất một người thực hiện, OQ-US01-03
+      end
+      alt authResult = UNAUTHENTICATED
+        S --> UI : 401 UNAUTHENTICATED, message
+        UI -> UI : formOpen = false; canPreview=false; canSave=false
+        UI --> U : Phiên hết hạn, cần đăng nhập lại (A6.1)\nĐăng nhập xong mở lại từ bước 1
+      else authResult = FORBIDDEN
+        S --> UI : 403 FORBIDDEN, message
+        UI -> UI : formOpen = false; canPreview=false; canSave=false
+        UI --> U : Không còn quyền xem trước/lập bảng (A6.1)\nKết thúc lượt; chỉ mở lại bước 1 khi đủ quyền
+      else authResult = SOURCE_UNAVAILABLE
+        S --> UI : SOURCE_UNAVAILABLE
+        UI --> U : Không xác minh được quyền; thử lại bước 6 cùng dữ liệu (A7.2)
+      else authResult = OK
+        S -> S : Kiểm tra đủ trường bắt buộc, kỳ và cấu hình (6)
+        opt requiredFieldsComplete and periodValid
+          S -> R : findOverlap(contractId, period, excludeCancelled=true)
+          R --> S : overlapResult
+        end
+        opt requiredFieldsComplete and periodValid and overlapResult = noOverlap
+          S -> Q : getQuantities(contractId, period) (7)
+          Q --> S : quantities, reconciliation / lỗi
+          S -> P : getActiveForContract(contractId, now) (7)
+          P --> S : activePrice, priceVersion, creationEvidence / 0 / nhiều hơn 1 / lỗi
+        end
+        S -> S : Phân loại lỗi đọc trước, sau đó giá/đối soát/ánh xạ dòng\nKiểm tra creationEvidence: bảng giá được lập lúc HĐ có hiệu lực
+        alt validation.code = OK theo chính sách nguồn đã xác nhận
+          loop mỗi dòng từ nguồn (8)
+            S -> S : lineAmount = quantity * activeUnitPrice
+          end
+          S -> S : Tổng hợp tổng; lưu ngữ cảnh xem trước\nCông thức cuối còn OQ-US03-03
+          S --> UI : preview(lines, total, priceVersion, note)
+          UI --> U : Hiện bảng giá, dòng, tổng và ghi chú (9)
+        else validation.code = FIELD_INVALID
+          S --> UI : fieldErrors
+          UI --> U : Thông báo; tô đỏ đúng trường kỳ; quay 4 (A4)
+        else validation.code = PERIOD_OVERLAP
+          S --> UI : PERIOD_OVERLAP
+          UI --> U : Thông báo kỳ đã bị chiếm, đánh dấu kỳ; quay 4 (A6)
+        else validation.code = NOT_RECONCILED
+          S --> UI : QUANTITY_NOT_RECONCILED
+          UI --> U : Thông báo; chọn kỳ khác bước 4 hoặc đóng form (A7)
+        else validation.code = ACTIVE_PRICE_INVALID
+          S --> UI : ACTIVE_PRICE_INVALID
+          UI --> U : Thông báo lỗi giá; thử lại bước 7 hoặc đóng (A7.1)
+        else validation.code = PRICE_ORIGIN_INVALID
+          S --> UI : PRICE_ORIGIN_INVALID
+          UI --> U : Chưa đáp ứng/xác minh điều kiện lúc lập giá; thử lại 7 hoặc đóng (A7.3)
+        else validation.code = SOURCE_UNAVAILABLE
+          S --> UI : SOURCE_UNAVAILABLE
+          UI --> U : Thông báo lỗi tải; thử lại cùng dữ liệu ở 6/7 (A7.2)
+        else validation.code = POLICY_DEPENDENT
+          S --> UI : Nội dung nguồn cần làm rõ
+          UI --> U : Thông báo chưa đủ điều kiện sinh dòng (A8)
+          note right of S : Nhánh này chưa chốt nghiệp vụ do OQ-US01-04/OQ-US03-03; không coi là mã API cuối.
+        end
+        note right of UI
+          Thử lại là sự kiện rõ ràng, không yêu cầu đổi kỳ đúng.
+          Phản hồi thuộc kỳ cũ đến muộn bị bỏ qua (A9).
+        end note
+      end
+
+    else event = chỉ nhập/sửa ghi chú trước lưu
+      UI -> UI : Cập nhật ghi chú tùy chọn, không tính lại tiền (5/A9)
+      UI --> U : Giữ kết quả tiền và hiển thị ghi chú (9)
+
+    else event = Lưu nháp and not outcomeUnknown
+      UI -> UI : canSave = requiredFieldsComplete; ghi chú trống hợp lệ (10)\nThiếu bắt buộc thì không bật Lưu nháp
+      alt thiếu hoặc sai trường kỳ
+        UI --> U : Cảnh báo chưa lưu; tô đỏ trường và nêu lý do; quay 4 (A11)
+      else kỳ đã nhập đủ
+        UI -> S : create(contractId, period, note, previewContext)
+        S -> S : Kiểm tra lại phiên/quyền và dữ liệu bắt buộc (11)\nĐược giao hợp đồng theo đề xuất; cấm nhập đè trường nguồn
+        S -> C : getContract(contractId)
+        C --> S : contract, config / null / lỗi
+        S -> R : findOverlap(contractId, period, excludeCancelled=true)
+        R --> S : overlapResult
+        S -> Q : getQuantities(contractId, period)
+        Q --> S : quantities, reconciliation / lỗi
+        S -> P : getActiveForContract(contractId, now)
+        P --> S : activePrice, priceVersion, creationEvidence / lỗi
+        S -> S : validateAndCalculate() -> candidate\nDùng Active và kiểm tra điều kiện lúc lập giá; q/p từ nguồn
+        note right of S
+          Sản lượng đổi từ preview: chính sách còn OQ-US01-04.
+          Chưa được tự chọn nguồn cũ/mới hoặc coi candidate là OK.
+          validation.code = OK chỉ khi các điều kiện liên quan đã đủ căn cứ.
+        end note
+        alt validation.code != OK
+          S --> UI : result(code, fieldErrors, message)
+          alt code = FORBIDDEN or UNAUTHENTICATED or NOT_FOUND or CONTRACT_NOT_ACTIVE
+            UI -> UI : formOpen = false
+            UI --> U : Thông báo nguyên nhân; về chi tiết, kết thúc theo A2
+          else code = READ_ONLY_FIELD
+            UI -> UI : formOpen = false
+            UI --> U : Thông báo không được ghi đè trường nguồn; mở lại bước 1 (A11.2)
+          else code là lỗi kỳ/nguồn/dữ liệu
+            UI --> U : Thông báo; fieldErrors tô đỏ đúng trường (A11)\nKỳ sai/trùng quay 4; nguồn lỗi thử lại 11
+          end
+        else validation.code = OK and giá khác preview
+          S --> UI : PRICE_CHANGED, newPreview theo giá Active
+          UI --> U : Thông báo giá thay đổi; hiển thị dòng/tổng mới, quay 9 (A11.1)
+        else validation.code = OK and preview đã khớp giá Active
+          group Transaction create – dữ liệu và audit (12)
+            S -> DB : begin()
+            DB --> S : beginResult
+            alt beginResult = error
+              S -> S : result = PERSISTENCE_ERROR (A12.1)
+            else beginResult = OK
+              S -> R : lockContractScopeAndCreate(candidate, period)
+              R -> DB : Khóa phạm vi thanh toán của hợp đồng\nKiểm tra lại mọi khoảng chồng lấn rồi ghi Draft
+              DB --> R : writeResult
+              R --> S : writeResult
+              alt writeResult = overlap
+                S -> DB : rollback()
+                S -> S : result = PERIOD_OVERLAP (A12)
+              else writeResult = error
+                S -> DB : rollback()
+                S -> S : result = PERSISTENCE_ERROR (A12.1)
+              else writeResult = OK
+                S -> A : append(create, actorId, time,\nbefore=chưa có bảng, after=candidate + Draft)
+                A -> DB : insertAudit() trong cùng giao dịch
+                DB --> A : auditResult
+                A --> S : auditResult
+                alt auditResult = error
+                  S -> DB : rollback()
+                  S -> S : result = PERSISTENCE_ERROR (A12.1)
+                else auditResult = OK
+                  S -> DB : commit()
+                  DB --> S : commitOutcome
+                  alt commitOutcome = committed
+                    S -> S : result = CREATED(id, candidate, Draft, version)
+                  else commitOutcome = definitelyNotCommitted
+                    S -> DB : rollback() nếu còn mở
+                    S -> S : result = PERSISTENCE_ERROR (A12.1)
+                  else commitOutcome = unknown
+                    S -> S : result = RESULT_UNKNOWN(lookupId) (A12.2)
+                  end
+                end
+              end
+            end
+          end
+          S --> UI : result
+          alt result.code = CREATED
+            UI -> UI : saved = true
+            UI --> U : Thông báo thành công, hiển thị Draft/id/version (13)
+          else result.code = PERIOD_OVERLAP
+            UI --> U : Thông báo xung đột, đánh dấu kỳ; quay 4 (A12)
+          else result.code = PERSISTENCE_ERROR
+            UI --> U : Thông báo lưu thất bại; giữ form; thử lại 10 (A12.1)
+          else result.code = RESULT_UNKNOWN
+            UI -> UI : outcomeUnknown = true; không gửi create lại
+            UI --> U : Thông báo chưa xác định kết quả; sang K1 (A12.2)
+          end
+        end
+      end
+
+    else event = kiểm tra kết quả and outcomeUnknown
+      UI -> S : checkSaveOutcome(lookupId) (K1)
+      S -> R : findSaveOutcome(lookupId)
+      R --> S : committed / definitelyNotCommitted / unknown
+      S --> UI : outcome
+      alt outcome = committed
+        UI -> UI : saved = true
+        UI --> U : Thông báo thành công, hiển thị bảng đã lưu (13)
+      else outcome = definitelyNotCommitted
+        UI -> UI : outcomeUnknown = false
+        UI --> U : Thông báo chưa lưu; có thể chủ động thử lại 10
+      else outcome = unknown
+        UI --> U : Thông báo còn chưa rõ; ở K1 hoặc về chi tiết
+      end
+
+    else event = đóng form
+      UI -> UI : formOpen = false
+      alt outcomeUnknown = true
+        UI --> U : Thông báo kết quả lưu còn chờ xác minh; về chi tiết
+      else outcomeUnknown = false
+        UI --> U : Thông báo chưa lưu; về chi tiết (A10)
+      end
+    end
+  end
+
+else NVKD sửa Draft đã lưu
+  U -> UI : Mở Draft, bấm Chỉnh sửa (U1)
+  UI -> S : openDraft(paymentId)
+  S -> R : getById(paymentId)
+  R --> S : payment(data, status, version) / null / lỗi
+  S -> S : Kiểm tra phiên/quyền và Draft (U2)\nĐề xuất: currentUser.id = payment.createdBy
+  alt openResult.code != OK
+    S --> UI : result(code)
+    UI --> U : Thông báo và về bảng đang xem, kết thúc (AU1)
+  else openResult.code = OK
+    S --> UI : payment(data, version)
+    UI --> U : Hiện form sửa (U3); khóa sản lượng, đơn giá, hợp đồng, khách hàng\nTrường khác theo OQ-US01-02
+    loop formOpen and not updateSaved
+      U -> UI : Sửa nội dung, bấm lưu/thử lại, đóng hoặc kiểm tra kết quả
+      alt event = lưu/thử lại and not outcomeUnknown
+        UI -> S : update(paymentId, changes, expectedVersion, previewContext) (U4)
+        S -> R : getById(paymentId)
+        R --> S : currentPayment / null / lỗi
+        S -> P : getActiveForContract(contractId, now)
+        P --> S : activePrice, priceVersion, creationEvidence / lỗi
+        S -> S : Kiểm tra phiên/quyền/Draft/version/nội dung\nĐề xuất: người sửa là createdBy; từ chối ghi đè trường nguồn\nvalidatedCandidate = validateAndRecalculate()
+        note right of S
+          Trường sửa, đọc lại sản lượng và tính lại: OQ-US01-02/OQ-US01-04.
+          Thuế/làm tròn: OQ-US03-03 còn hỏi khách hàng.
+          Q/p lấy từ nguồn; người dùng không sửa thủ công trường nguồn.
+          Giá khi tính/lưu phải Active theo P-18.3.
+        end note
+        alt validation.code = READ_ONLY_FIELD
+          S --> UI : 400 READ_ONLY_FIELD, fields
+          UI --> U : Không cho ghi đè trường nguồn/kết quả tính; tải lại U1 (AU4.2)
+          UI -> UI : formOpen = false
+        else validation.code = PRICE_ORIGIN_INVALID
+          S --> UI : PRICE_ORIGIN_INVALID
+          UI --> U : Thông báo điều kiện lúc lập giá chưa đạt/chưa xác minh; về U3 (AU4.3)
+        else validation.code = FIELD_INVALID
+          S --> UI : fieldErrors
+          UI --> U : Thông báo và tô đỏ trường nhập vi phạm; quay U3 (AU4)
+        else validation.code = VERSION_REQUIRED
+          S --> UI : VERSION_REQUIRED
+          UI --> U : Thông báo cần tải lại; quay U1 (AU4)
+        else validation.code = OPEN_INVALID
+          S --> UI : NOT_FOUND / FORBIDDEN / INVALID_STATE / SOURCE_UNAVAILABLE
+          UI --> U : Thông báo; về bảng đang xem, kết thúc (AU1)
+          UI -> UI : formOpen = false
+        else validation.code = OK and giá khác preview
+          S --> UI : PRICE_CHANGED, newPreview theo Active
+          UI --> U : Thông báo, kiểm tra số mới ở U3 rồi lưu U4 (AU4.1)
+        else validation.code = OK and giá khớp preview
+          group Transaction update – candidate và audit (U5)
+            S -> DB : begin()
+            DB --> S : beginResult
+            alt beginResult = error
+              S -> S : result = PERSISTENCE_ERROR
+            else beginResult = OK
+              S -> R : update(paymentId, validatedCandidate,\nexpectedStatus=Draft, expectedVersion)
+              R -> DB : Khóa phạm vi hợp đồng nếu kỳ đổi;\nkiểm tra chồng lấn và cập nhật có điều kiện, tăng version
+              DB --> R : writeResult
+              R --> S : writeResult
+              alt writeResult = conflict
+                S -> DB : rollback()
+                S -> S : result = CONCURRENT_MODIFICATION
+              else writeResult = periodOverlap
+                S -> DB : rollback()
+                S -> S : result = PERIOD_OVERLAP
+              else writeResult = error
+                S -> DB : rollback()
+                S -> S : result = PERSISTENCE_ERROR
+              else writeResult = OK
+                S -> A : append(update, actorId, time,\nbefore=currentPayment cùng version, after=validatedCandidate)
+                A -> DB : insertAudit() trong cùng giao dịch
+                DB --> A : auditResult
+                A --> S : auditResult
+                alt auditResult = error
+                  S -> DB : rollback()
+                  S -> S : result = PERSISTENCE_ERROR
+                else auditResult = OK
+                  S -> DB : commit()
+                  DB --> S : commitOutcome
+                  alt commitOutcome = committed
+                    S -> S : result = UPDATED(validatedCandidate, Draft, newVersion)
+                  else commitOutcome = definitelyNotCommitted
+                    S -> DB : rollback() nếu còn mở
+                    S -> S : result = PERSISTENCE_ERROR
+                  else commitOutcome = unknown
+                    S -> S : result = RESULT_UNKNOWN(lookupId)
+                  end
+                end
+              end
+            end
+          end
+          S --> UI : result
+          alt result.code = UPDATED
+            UI -> UI : updateSaved = true
+            UI --> U : Thông báo sửa thành công, hiển thị Draft/version mới (U6)
+          else result.code = CONCURRENT_MODIFICATION
+            UI --> U : Thông báo xung đột; tải lại từ U1 (AU5)
+            UI -> UI : formOpen = false
+          else result.code = PERIOD_OVERLAP
+            UI --> U : Thông báo chồng lấn, tô đỏ kỳ; quay U3 (AU4)
+          else result.code = PERSISTENCE_ERROR
+            UI --> U : Thông báo lưu thất bại; giữ form U3, lưu lại U4 (AU5.1)
+          else result.code = RESULT_UNKNOWN
+            UI -> UI : outcomeUnknown = true
+            UI --> U : Thông báo chưa rõ kết quả; sang K1 (AU5.2)
+          end
+        end
+      else event = kiểm tra kết quả and outcomeUnknown
+        UI -> S : checkSaveOutcome(lookupId) (K1)
+        S -> R : findSaveOutcome(lookupId)
+        R --> S : committed / definitelyNotCommitted / unknown
+        S --> UI : outcome
+        alt outcome = committed
+          UI -> UI : updateSaved = true
+          UI --> U : Thông báo thành công, hiển thị dữ liệu đã lưu (U6)
+        else outcome = definitelyNotCommitted
+          UI -> UI : outcomeUnknown = false
+          UI --> U : Thông báo chưa lưu; quay U3, chủ động lưu lại U4
+        else outcome = unknown
+          UI --> U : Thông báo còn chưa rõ; ở K1 hoặc về bảng đang xem
+        end
+      else event = đóng form
+        UI -> UI : formOpen = false
+        alt outcomeUnknown = true
+          UI --> U : Thông báo kết quả lưu còn chờ xác minh; về bảng đang xem
+        else outcomeUnknown = false
+          UI --> U : Thông báo thay đổi chưa lưu; về bảng đang xem (AU3)
+        end
+      end
+    end
+  end
+end
+
+legend bottom
+  Giá/loại kỳ lấy từ hợp đồng, chỉ đọc nguồn. Các trạng thái bảng giữ Draft/PendingApproval/Approved/Rejected/Cancelled.
+  formOpen/saved/outcomeUnknown và mã kết quả thao tác là điều khiển UI, không phải trạng thái bảng mới.
+  NFR-PAY-02: ≤3 giây với <200 dòng, chưa đo; cách đo còn OQ-US01-06.
+  Transaction cục bộ không bảo đảm atomic với nguồn ngoài. Cơ chế xác minh commit/phiên bản giá cần chọn cùng DB/interface.
+endlegend
+@enduml
