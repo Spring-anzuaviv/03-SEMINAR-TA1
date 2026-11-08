@@ -1,0 +1,306 @@
+@startuml seq-us-01-v1
+title Lập bảng thanh toán và sửa Draft (US-PAY-01) – v1
+' Phiên bản: v1 | Ngày: 08/11/2026 | Người phụ trách: Chờ nhóm điền
+' Đầu vào: docs/analysis/payment-management/v1/sys-us-01-v1.md; open-questions-v1.md
+' AI: Codex / GPT-6 | Prompt: P-15 trong docs/workflow/prompt-log.md
+' Mục đích: thể hiện create/update, kiểm tra, đọc nguồn, tính tiền, giao dịch và audit.
+' Phạm vi: US-PAY-01; PAY-01..03; NFR-PAY-01/02; không submit/approve/reject/adjust/cancel.
+' Nguồn nghiệp vụ: TA-SPEC §1, §2, §3, §4.1, §5 PAY-01..03, PAY-08, §6.
+' TA-PDF chưa đọc trực tiếp trong lần chạy này; không dùng đề xuất OQ cũ như quyết định đã xác nhận.
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval
+' Kết xuất: 08/11/2026 – PlantUML 1.2024.3 -checkonly và -tsvg thành công; SVG cùng tên cạnh file nguồn.
+' QA: -tpng ra thư mục TEMP để xem hình, đã kiểm tra bố cục tổng thể; lệnh chi tiết tại P-15.
+'
+' Danh mục sơ đồ: seq-us-01-v1.puml | US-PAY-01 | AC-US01-01..20.
+' Theo tổ chức hiện có (P-09), danh mục và tên tạm đặt ở chú thích, chưa tạo 03-detailed-design.
+' Đối chiếu bước SYS <-> đoạn sequence (mọi nhánh lỗi nằm trong alt/else, không chạy tiếp nhánh thành công):
+'   1, 2, A2, AU2 -> xác thực/vai trò chung; phạm vi quyền được kiểm tra trong từng thao tác.
+'   2, A2.1 -> INVALID_INPUT; 3, A3 -> getContract, NOT_FOUND / CONTRACT_NOT_ACTIVE.
+'   4, A4, A4.1 -> validatePeriod / findConflict; INVALID_PERIOD / PAYMENT_EXISTS / lỗi đọc.
+'   5, A5, A5.1 -> reader failure / PRICE_NOT_SUITABLE / QUANTITY_NOT_RECONCILED.
+'   6, A6 -> validateCalculationInputs, loop PAY-03, calculateTotal.
+'   7, A7 -> create trong giao dịch, xung đột duy nhất tại thời điểm ghi.
+'   7-8, A7.1 -> lỗi bảng/dòng/audit/commit -> rollback; 9 -> 201 Draft sau commit.
+'   U1-U2, AU2, AU2.1, AU2.2 -> update / getById / quyền / NOT_FOUND / lỗi đọc.
+'   U3, AU3 -> status != Draft -> INVALID_STATE; không chuyển Rejected sang Draft.
+'   U4, AU4 -> validateAndRecalculate; chính sách trường/tính lại chưa chốt.
+'   U5, AU5, AU5.1 -> update có điều kiện Draft/version, rollback khi xung đột/lỗi/audit.
+'   U6 -> 200 Draft sau commit; AC-US01-20 -> mục tiêu NFR ở note đầu.
+'
+' Tên dùng tạm – cần đồng bộ vào 03 (chưa có class/API contract cùng version):
+'   Vai trò | Tên | Thao tác
+'   API | PaymentController | create(contractId, period), update(paymentId, changes, expectedVersion)
+'   Điều phối | PaymentService | create, update, validatePeriod, validateCalculationInputs, validateAndRecalculate
+'   Lưu trữ | PaymentRepository | findConflict, getById, create, update
+'   Audit | AuditLog | append(action, paymentId, actorId, timestamp, before, after)
+'   Interface chỉ đọc | IContractReader.getContract; IPriceReader.getPrices; IQuantityReader.getQuantities
+'   Giao dịch đề xuất | PaymentDatabase | begin, commit, rollback; bảng/dòng/audit dùng cùng transaction.
+'   Thao tác nghiệp vụ dùng chung: create, update. Không chốt endpoint trong lần thiết kế này.
+'   HTTP/mã lỗi tạm: 401 UNAUTHENTICATED; 403 FORBIDDEN; 400 INVALID_INPUT/INVALID_PERIOD;
+'     404 NOT_FOUND; 409 CONTRACT_NOT_ACTIVE/PAYMENT_EXISTS/PRICE_NOT_SUITABLE/QUANTITY_NOT_RECONCILED/
+'     INVALID_STATE/CONCURRENT_MODIFICATION; 503 SOURCE_UNAVAILABLE; 500 PERSISTENCE_ERROR.
+'   Create thành công: 201; update thành công: 200. Mã lỗi là đề xuất kỹ thuật, không phải mã trong TA.
+'
+' [ĐỀ XUẤT KỸ THUẬT] (cần đưa vào 07 khi làm bộ thiết kế đầy đủ):
+'   Mục đích: đáp ứng PAY-01, PAY-03 và audit §6; giữ giao dịch ngắn, không ghi module nguồn.
+'   Chọn: kiểm tra sơ bộ + bảo đảm duy nhất khi ghi; cập nhật Draft có điều kiện version;
+'     bảng/dòng/audit commit cùng DB; lưu sản lượng, đơn giá, thời điểm tính để truy lại phép tính.
+'   Thay thế: chỉ kiểm tra trước khi ghi; ghi audit sau commit; last-write-wins; khóa bi quan.
+'   Lý do: các phương án đầu không bảo đảm duy nhất/audit, last-write-wins có thể mất sửa đổi;
+'     khóa bi quan là lựa chọn khác nhưng cần giữ khóa. Chưa chốt DB hay schema/index cụ thể.
+'   Tác động: xung đột trả lỗi, cần đọc lại; audit lỗi thì thao tác không được lưu.
+'   Constraint/phạm vi duy nhất: Blocked by OQ-01, OQ-US05-02; không mặc định (contractId, month).
+' AS-IS đã đọc: src/Qtkd.Api/{Program.cs,Qtkd.Api.csproj,Models/Contract.cs,Services/ContractService.cs}.
+'   API minimal net8.0 chỉ có hợp đồng, ContractService lưu in-memory; không có payment/price/quantity reader,
+'   audit, CSDL hoặc xác thực trong các file đã khảo sát. Toàn bộ lifeline thanh toán dưới đây là TO-BE.
+'   Không dùng trạng thái RevisionRequested của hợp đồng cho bảng thanh toán; chưa kiểm tra test ngoài src/Qtkd.Api.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD" as U
+boundary "PaymentController" as API
+control "PaymentService" as S
+participant "IContractReader\n<<read-only>>" as C
+participant "IPriceReader\n<<read-only>>" as P
+participant "IQuantityReader\n<<read-only>>" as Q
+entity "PaymentRepository" as R
+participant "AuditLog" as A
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over U, DB #FFF4DB
+  [ĐỀ XUẤT KỸ THUẬT] Sequence suy ra từ SYS-US-01 v1; lifeline, method và mã lỗi là tên tạm.
+  Phần phụ thuộc OQ chưa đủ điều kiện triển khai cuối cùng; OQ không phải lỗi runtime.
+  Blocked by OQ-01, OQ-US05-02: kỳ và phạm vi duy nhất; OQ-US01-05: mốc Active.
+  Blocked by OQ-US01-01, OQ-US01-04, OQ-US03-03: giá, sinh dòng, tổng tiền/làm tròn/VAT.
+  Blocked by OQ-US01-02, OQ-US01-03: trường sửa và phạm vi quyền NVKD.
+  Blocked by OQ-04, OQ-US03-07: mở sửa bảng Rejected; không vẽ chuyển này.
+  NFR-PAY-02: mục tiêu lập ≤3 giây, hợp đồng <200 dòng; chưa đo, cách đo chờ OQ-US01-06.
+end note
+
+U -> API : create(contractId, period)\nhoặc update(paymentId, changes, expectedVersion)
+API -> API : Lấy currentUser từ phiên đã xác thực\nKiểm tra vai trò NVKD [2/U2]
+alt Chưa xác thực [A2/AU2]
+  API --> U : 401 UNAUTHENTICATED
+else Không có vai trò NVKD [A2/AU2]
+  API --> U : 403 FORBIDDEN
+else Có vai trò NVKD
+  alt Thao tác create [1]
+    API -> S : create(contractId, period, currentUser)
+    S -> S : Kiểm tra đủ dữ liệu hợp đồng/kỳ [2]
+    alt Thiếu/sai định dạng đầu vào [A2.1]
+      S --> API : INVALID_INPUT
+      API --> U : 400 INVALID_INPUT
+    else Đầu vào đủ
+      S -> C : getContract(contractId) [3]
+      C --> S : contract / null / lỗi đọc
+      alt Lỗi đọc nguồn [A5.1]
+        S --> API : SOURCE_UNAVAILABLE
+        API --> U : 503 SOURCE_UNAVAILABLE
+      else Không có hợp đồng [A3]
+        S --> API : NOT_FOUND
+        API --> U : 404 NOT_FOUND
+      else Tìm thấy hợp đồng
+        S -> S : Kiểm tra phạm vi quyền [2]\nBlocked by OQ-US01-03
+        alt Không đủ quyền trên hợp đồng theo chính sách đã xác nhận [A2]
+          S --> API : FORBIDDEN
+          API --> U : 403 FORBIDDEN
+        else Đủ quyền theo chính sách đã xác nhận
+          S -> S : Kiểm tra Active [3]\nMốc hiệu lực: Blocked by OQ-US01-05
+          alt Hợp đồng không Active [A3]
+            S --> API : CONTRACT_NOT_ACTIVE
+            API --> U : 409 CONTRACT_NOT_ACTIVE
+          else Active theo tiêu chí đã xác nhận
+            S -> S : validatePeriod(contract, period) [4]\nBlocked by OQ-01
+            alt Kỳ không khớp cấu hình [A4]
+              S --> API : INVALID_PERIOD
+              API --> U : 400 INVALID_PERIOD
+            else Kỳ hợp lệ theo quy tắc đã xác nhận
+              S -> R : findConflict(contractId, period, uniquenessPolicy) [4]\nBlocked by OQ-01, OQ-US05-02
+              R -> DB : Đọc bảng chiếm phạm vi kỳ
+              DB --> R : conflict / không có / lỗi
+              R --> S : Kết quả tra trùng
+              alt Lỗi đọc dữ liệu thanh toán [A4.1]
+                S --> API : PERSISTENCE_ERROR
+                API --> U : 500 PERSISTENCE_ERROR
+              else Đã có bảng chiếm kỳ [A4]
+                S --> API : PAYMENT_EXISTS
+                API --> U : 409 PAYMENT_EXISTS
+              else Chưa có bảng xung đột
+                S -> P : getPrices(contractId, period, calculationContext) [5]\nBlocked by OQ-US01-01
+                P --> S : Dữ liệu giá / lỗi đọc
+                S -> Q : getQuantities(contractId, period) [5]
+                Q --> S : Sản lượng, trạng thái đối soát / lỗi đọc
+                alt Một interface nguồn bị lỗi [A5.1]
+                  S --> API : SOURCE_UNAVAILABLE
+                  API --> U : 503 SOURCE_UNAVAILABLE
+                else Không có bảng giá phù hợp [A5]
+                  S --> API : PRICE_NOT_SUITABLE
+                  API --> U : 409 PRICE_NOT_SUITABLE
+                else Sản lượng kỳ chưa Đã đối soát [A5]
+                  S --> API : QUANTITY_NOT_RECONCILED
+                  API --> U : 409 QUANTITY_NOT_RECONCILED
+                else Có giá phù hợp và sản lượng Đã đối soát
+                  S -> S : validateCalculationInputs() [5-6]\nDòng/giá rỗng, thiếu, trùng: OQ-US01-01, OQ-US01-04
+                  alt Dữ liệu không đủ/không hợp lệ theo chính sách đã xác nhận [A5/A6]
+                    S --> API : INVALID_INPUT
+                    API --> U : 400 INVALID_INPUT
+                  else Dữ liệu đủ để tính theo chính sách đã xác nhận
+                    loop Mỗi dòng dịch vụ từ dữ liệu nguồn [6; PAY-03]
+                      S -> S : lineAmount = quantity * unitPriceAtCalculation\nGiữ quantity, unitPrice và thời điểm tính
+                    end
+                    S -> S : calculateTotal(lines) [6]\nBlocked by OQ-US03-03 cho xử lý tiền cuối cùng
+                    note right of S
+                      Tổng hợp thành tiền là AC dẫn xuất.
+                      Không tự thêm VAT hay cách làm tròn.
+                      PAY-04 kiểm tra khi submit; không chặn tổng âm ở create.
+                    end note
+                    group Transaction create – bảng/dòng + audit [7-8]
+                      S -> DB : begin()
+                      DB --> S : Đã mở giao dịch / lỗi
+                      alt Không mở được giao dịch [A7.1]
+                        S --> API : PERSISTENCE_ERROR
+                        API --> U : 500 PERSISTENCE_ERROR
+                      else Giao dịch đã mở
+                      S -> R : create(draft, uniquenessPolicy) [7]
+                      R -> DB : Ghi bảng Draft và các dòng\nBảo đảm PAY-01 nguyên tử theo phạm vi đã xác nhận
+                      DB --> R : Đã ghi / xung đột duy nhất / lỗi
+                      R --> S : Kết quả ghi
+                      alt Yêu cầu đồng thời đã chiếm kỳ [A7]
+                        S -> DB : rollback()
+                        S --> API : PAYMENT_EXISTS
+                        API --> U : 409 PAYMENT_EXISTS
+                      else Lỗi ghi bảng/dòng [A7.1]
+                        S -> DB : rollback()
+                        S --> API : PERSISTENCE_ERROR
+                        API --> U : 500 PERSISTENCE_ERROR
+                      else Ghi bảng/dòng thành công
+                        S -> A : append(create, paymentId, currentUser.id, now,\nbefore=chưa có bảng, after=Draft + dữ liệu đã tạo) [8]
+                        A -> DB : Ghi audit trong cùng transaction
+                        DB --> A : OK / lỗi
+                        A --> S : Kết quả ghi audit
+                        alt Lỗi audit [A7.1]
+                          S -> DB : rollback()
+                          S --> API : PERSISTENCE_ERROR
+                          API --> U : 500 PERSISTENCE_ERROR
+                        else Audit đã ghi
+                          S -> DB : commit()
+                          DB --> S : Thành công / thất bại
+                          alt Commit thất bại [A7.1]
+                            S -> DB : rollback()
+                            S --> API : PERSISTENCE_ERROR
+                            API --> U : 500 PERSISTENCE_ERROR
+                          else Commit thành công [9]
+                            S --> API : payment(id, contract, period, lines, total, Draft)
+                            API --> U : 201 Created – bảng Draft đã lưu
+                          end
+                        end
+                      end
+                      end
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+  else Thao tác update Draft [U1]
+    API -> S : update(paymentId, changes, expectedVersion, currentUser)
+    S -> R : getById(paymentId) [U2]
+    R -> DB : Đọc bảng, dòng, trạng thái và version
+    DB --> R : payment / null / lỗi
+    R --> S : Kết quả đọc
+    alt Lỗi đọc bảng [AU2.2]
+      S --> API : PERSISTENCE_ERROR
+      API --> U : 500 PERSISTENCE_ERROR
+    else Không có bảng [AU2.1]
+      S --> API : NOT_FOUND
+      API --> U : 404 NOT_FOUND
+    else Có bảng
+      S -> S : Kiểm tra phạm vi quyền [U2]\nBlocked by OQ-US01-03
+      alt Không đủ quyền trên bảng [AU2]
+        S --> API : FORBIDDEN
+        API --> U : 403 FORBIDDEN
+      else Đủ quyền theo chính sách đã xác nhận
+        S -> S : Kiểm tra trạng thái hiện tại [U3]
+        alt status != Draft [AU3]
+          S --> API : INVALID_STATE
+          API --> U : 409 INVALID_STATE
+          note right of S
+            Rejected: Blocked by OQ-04, OQ-US03-07.
+            Không tự chuyển trạng thái để sửa.
+            Điều chỉnh Approved là US-PAY-04, ngoài sơ đồ này.
+          end note
+        else status = Draft
+          S -> S : validateAndRecalculate(payment, changes) [U4]\nBlocked by OQ-US01-02, OQ-US03-03
+          ref over S, Q
+            U4 – Chưa chốt phạm vi trường sửa hay cách đọc lại nguồn.
+            Nếu được phép đổi dữ liệu liên quan: tái kiểm tra PAY-01..03.
+            Giá/dòng/hiệu lực: OQ-US01-01, OQ-US01-04, OQ-US01-05.
+            Đây là phần phụ thuộc OQ, không phải quy trình đã phê duyệt.
+          end ref
+          alt Nội dung sai theo chính sách đã xác nhận [AU4]
+            S --> API : INVALID_INPUT
+            API --> U : 400 INVALID_INPUT
+          else Nội dung hợp lệ theo chính sách đã xác nhận
+            group Transaction update – giữ Draft + audit [U5]
+              S -> DB : begin()
+              DB --> S : Đã mở giao dịch / lỗi
+              alt Không mở được giao dịch [AU5.1]
+                S --> API : PERSISTENCE_ERROR
+                API --> U : 500 PERSISTENCE_ERROR
+              else Giao dịch đã mở
+              S -> R : update(paymentId, changes,\nexpectedStatus=Draft, expectedVersion) [U5]
+              R -> DB : Cập nhật có điều kiện trạng thái/version\nGhi dữ liệu hợp lệ, giữ Draft, tăng version
+              DB --> R : Đã ghi / 0 dòng / lỗi
+              R --> S : Kết quả cập nhật
+              alt Trạng thái hoặc version đã thay đổi [AU5]
+                S -> DB : rollback()
+                S --> API : CONCURRENT_MODIFICATION
+                API --> U : 409 CONCURRENT_MODIFICATION
+              else Lỗi ghi dữ liệu [AU5.1]
+                S -> DB : rollback()
+                S --> API : PERSISTENCE_ERROR
+                API --> U : 500 PERSISTENCE_ERROR
+              else Cập nhật thành công
+                S -> A : append(update, paymentId, currentUser.id, now,\nbefore=giá trị trước, after=giá trị sau; Draft -> Draft) [U5]
+                A -> DB : Ghi audit trong cùng transaction
+                DB --> A : OK / lỗi
+                A --> S : Kết quả ghi audit
+                alt Lỗi audit [AU5.1]
+                  S -> DB : rollback()
+                  S --> API : PERSISTENCE_ERROR
+                  API --> U : 500 PERSISTENCE_ERROR
+                else Audit đã ghi
+                  S -> DB : commit()
+                  DB --> S : Thành công / thất bại
+                  alt Commit thất bại [AU5.1]
+                    S -> DB : rollback()
+                    S --> API : PERSISTENCE_ERROR
+                    API --> U : 500 PERSISTENCE_ERROR
+                  else Commit thành công [U6]
+                    S --> API : payment(status=Draft, dữ liệu đã sửa, version mới)
+                    API --> U : 200 OK – bảng Draft sau sửa
+                  end
+                end
+              end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+legend bottom
+  [ĐẶC TẢ] Actor NVKD, đọc nguồn, PAY-01..03, Draft: TA-SPEC §1/§2/§4.1/§5.
+  [ĐỀ XUẤT KỸ THUẬT] Giao dịch, audit create/update, snapshot, version, HTTP và mã lỗi.
+  Phương án thiết kế để đáp ứng §6 không phải bằng chứng đã đo hiệu năng hoặc phê duyệt.
+endlegend
+@enduml

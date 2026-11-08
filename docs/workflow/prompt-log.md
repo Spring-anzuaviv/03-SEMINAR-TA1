@@ -284,3 +284,128 @@ Prompt nguyên văn:
 
     Đọc AGENTS.md, đóng vai agent ba, dựa vào docs\review\payment-management\user-review-us-05.md, dùng skill sys-spec cho US-PAY-05, version v2. Ghi docs/analysis/payment-management/v2/sys-us-05-v2.md
     Sau đó, đóng vai agent design, dựa vào docs\review\payment-management\user-review-us-05.md,  dùng skill sequence-diagram cho US-PAY-05, version v2, đầu vào sys-us-05-v2.md. Ghi vào docs/design/payment-management/v2/diagrams/.
+
+### P-15 – Phân tích và sequence lập bảng thanh toán US-PAY-01 (v1)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace (chờ nhóm điền họ tên) |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; Java 27.0.1; PlantUML 1.2024.3 từ extension jebbs.plantuml-2.18.1 |
+| Vai trò / skill / version | ba rồi design trong cùng chat / naming-versioning, sys-spec, sequence-diagram / v1; không tạo subagent |
+| Nguồn đã đưa vào | AGENTS.md; TA-SPEC §1–6; sources.md; các skill trên và payment-context.md; sys-us-03/04/05-v1.md, OQ chung và sequence hiện có để đối chiếu ID/tên. Khảo sát Program.cs, Qtkd.Api.csproj, Models/Contract.cs, Services/ContractService.cs. Chưa đọc trực tiếp TA-PDF, không dùng nguồn nghiệp vụ trực tuyến. |
+| File đầu ra | [sys-us-01-v1.md](../analysis/payment-management/v1/sys-us-01-v1.md); bổ sung [open-questions-v1.md](../analysis/payment-management/v1/open-questions-v1.md); [seq-us-01-v1.puml](../design/payment-management/v1/diagrams/seq-us-01-v1.puml) và [SVG](../design/payment-management/v1/diagrams/seq-us-01-v1.svg). Chú thích `.puml` chứa danh mục, tên tạm, đối chiếu bước và phương án kỹ thuật theo cách tổ chức hiện có (P-09). |
+| Phân tích | 20 AC; thêm OQ-01 và OQ-US01-01..06; tái sử dụng OQ-US05-02, OQ-US03-03, OQ-04, OQ-US03-07. Giữ nguyên nội dung các dòng OQ cũ và trạng thái chưa xác nhận. Không dùng quyết định trong v2 để chốt v1. |
+| Kiểm chứng | Kiểm tra workspace, đối chiếu ID/OQ/nhánh, nguồn và render: xem lệnh/kết quả bên dưới. Chưa triển khai, chạy test ứng dụng, đo hiệu năng hay phê duyệt nghiệp vụ. |
+| Phần AI viết / nhóm sửa | AI viết mới đặc tả, sequence/SVG, bổ sung OQ và mục nhật ký này. Người dùng xác nhận tên file theo quy ước; chưa có chỉnh sửa nghiệp vụ của nhóm. Không sửa src/, đặc tả nguồn hay báo cáo review. Chưa tạo commit. |
+
+Prompt nguyên văn (phần My request; giữ cách viết đường dẫn ban đầu):
+
+```text
+ĐẶC TẢ NGHIỆP VỤ  \
+1\. Mục đích và phạm vi \
+Công ty cung cấp dịch vụ cho khách hàng theo hợp đồng. Định kỳ, nhân viên kinh doanh lập \
+bảng thanh toán dựa trên sản lượng thực tế nhân đơn giá trong bảng giá. Bảng thanh toán \
+phải được duyệt trước khi chuyển kế toán xuất hóa đơn. \
+Module này chỉ bao gồm: lập, trình duyệt, duyệt/từ chối, điều chỉnh và hủy bảng thanh toán. \
+Quản lý hợp đồng, bảng giá và sản lượng là module khác; module này chỉ đọc dữ liệu từ \
+chúng. \
+2\. Thuật ngữ và vai trò \
+Ý nghĩa \
+Thuật ngữ / vai trò \
+NVKD \
+Nhân viên kinh doanh, lập và trình duyệt bảng \
+KTT \
+Kế toán trưởng \
+GĐKD \
+Giám đốc kinh doanh \
+Kỳ thanh toán \
+Khoảng thời gian tính tiền, là tháng hoặc quý tùy cấu hình của \
+từng hợp đồng \
+Sản lượng đã đối soát Sản lượng đã được hai bên xác nhận \
+Dòng thanh toán \
+Một dịch vụ trong bảng: sản lượng, đơn giá, thành tiền \
+3\. Trạng thái bảng thanh toán \
+Bảng thanh toán có các trạng thái: Draft, PendingApproval, Approved, Rejected, \
+Cancelled. \
+Luồng chính: Draft → PendingApproval → Approved. Khi bị từ chối, bảng chuyển sang \
+Rejected. Draft có thể chuyển sang Cancelled. \
+4\. Yêu cầu chức năng \
+4.1 US-PAY-01: Lập bảng thanh toán (NVKD) \
+NVKD chọn hợp đồng và kỳ thanh toán. Hệ thống tự sinh các dòng thanh toán từ sản lượng \
+và bảng giá, tính tổng tiền, lưu ở trạng thái Draft. NVKD được phép chỉnh sửa bảng khi còn \
+ở Draft.&#x20;
+
+5\. Quy tắc nghiệp vụ \
+Mã \
+Nội dung \
+PAY-01 \
+Chỉ lập bảng thanh toán cho hợp đồng đang hiệu lực (Active) và có bảng \
+giá phù hợp. Mỗi hợp đồng chỉ có một bảng thanh toán cho mỗi tháng. \
+PAY-02 \
+Sản lượng của kỳ phải ở trạng thái "Đã đối soát" trước khi lập bảng. \
+PAY-03 \
+Thành tiền mỗi dòng = sản lượng × đơn giá tại thời điểm tính. \
+PAY-04 \
+Khi trình duyệt, hệ thống chặn nếu tổng tiền âm hoặc thiếu dòng dịch vụ \
+bắt buộc. Hệ thống chống thao tác trình duyệt trùng. \
+PAY-05 \
+Bảng thanh toán đã Approved không được sửa dưới bất kỳ hình thức nào. \
+PAY-06 \
+Bảng có tổng tiền trên 500 triệu đồng phải do GĐKD duyệt; các bảng còn \
+lại do KTT duyệt. \
+PAY-07 \
+Người lập bảng không được duyệt bảng do chính mình lập. \
+PAY-08 \
+Khi từ chối phải nhập lý do; sau khi bị từ chối, bảng quay về trạng thái \
+Draft để NVKD chỉnh sửa và trình lại. \
+
+
+6\. Yêu cầu phi chức năng \
+• Mọi thay đổi trạng thái và mọi điều chỉnh phải được ghi audit log (ai, lúc nào, thay \
+đổi gì). \
+• Chức năng lập bảng phải phản hồi trong vòng 3 giây với hợp đồng có dưới 200 dòng.
+
+
+
+thực hiện phân tích yêu cầu trên và thiết kế cho chức năng lập bảng thanh toán này.
+
+
+
+yêu cầu đầu ra:&#x20;
+
+- file đặc tả hệ thống: docs\analysis\payment-management\v1spec-us-01-v1.md
+- thiết kế sequence diagram: docs\design\payment-management\v1\diagrams/seq-us-01-v1.puml
+- các câu hỏi mở mổ sung vào: D:\PTUDHTTT\03-SEMINAR-TA1\docs\analysis\payment-management\v1\open-questions-v1.md theo format của nội dung đã tồn tại.
+```
+
+Làm rõ tên file qua công cụ hỏi người dùng:
+
+> Đường dẫn đặc tả bạn ghi là `docs/analysis/payment-management/v1spec-us-01-v1.md`. Bạn muốn dùng tên nào?
+
+Người dùng chọn nguyên văn: **Theo quy ước workspace: v1/sys-us-01-v1.md**.
+
+Lệnh và kết quả kiểm chứng:
+
+- Python dùng trực tiếp bản đã cài tại `C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe`. Chạy không có `-X utf8` ban đầu lỗi encoding terminal; chạy lại với `-X utf8` giải quyết lỗi. `uv python find --offline` trước đó bị sandbox chặn cache; yêu cầu chạy ngoài sandbox bị từ chối, không chạy lệnh đó ngoài sandbox.
+- `& 'C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe' -X utf8 scripts/verify_agent_config.py` → `RESULT: PASS (0 failed checks)` trước và sau thay đổi; checksum TA-SPEC/TA-PDF được giữ nguyên.
+- `java -jar 'C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar' -charset UTF-8 -checkonly docs/design/payment-management/v1/diagrams/seq-us-01-v1.puml` → exit 0.
+- Cùng lệnh trên, thay `-checkonly` bằng `-tsvg` → exit 0, tạo SVG cùng tên. Đã kết xuất PNG vào thư mục TEMP bằng `-DPLANTUML_LIMIT_SIZE=18000` và `-tpng`, xem bố cục tổng thể bằng `view_image`; không đưa PNG tạm vào repo.
+- Script Python chạy qua stdin (`python.exe -X utf8 -`) đối chiếu AC, nhánh lỗi, ID, hàng bảng và liên kết: PASS — 20 AC không trùng; 17 nhánh lỗi đều có AC và đoạn sequence; 11 OQ liên quan khớp giữa đặc tả/sequence/OQ chung; 7 hàng OQ mới giống bản đặc tả; giữ nguyên cả 15 hàng OQ cũ; cột bảng Markdown và liên kết hợp lệ; SVG là XML hợp lệ, kích thước 2180 × 6140. Đây là kiểm tra cấu trúc/truy vết, không thay review nghiệp vụ.
+- `git diff --check` → exit 0. Không có kiểm thử chạy ứng dụng hoặc phép đo NFR-PAY-02 trong lần này.
+
+### P-16 – Bổ sung vị trí OQ trong đặc tả quy trình US-PAY-01 (v1)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace (chờ nhóm điền họ tên) |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15 |
+| Vai trò / skill / version | ba / naming-versioning, sys-spec (tiếp nối P-15) / v1 |
+| Nguồn đã đưa vào | sys-us-01-v1.md và open-questions-v1.md hiện có; các mục, tiền điều kiện, bước, nhánh và AC đã được định nghĩa trong đặc tả quy trình. |
+| File đầu ra | [sys-us-01-v1.md](../analysis/payment-management/v1/sys-us-01-v1.md), [open-questions-v1.md](../analysis/payment-management/v1/open-questions-v1.md) và mục nhật ký này. |
+| Thay đổi | Thêm “Vị trí trong quy trình” trong cột “Vị trí mọi nguồn” cho 11 OQ liên quan US-PAY-01 ở cả hai bảng: liên kết file + số mục + tiền điều kiện/bước/nhánh + AC. Giữ cột nguồn TA-SPEC, ID, nội dung, lựa chọn, trạng thái và câu trả lời hiện có. |
+| Kiểm chứng | `python.exe -X utf8 scripts/verify_agent_config.py` với đường dẫn Python như P-15 → `RESULT: PASS (0 failed checks)`; `git diff --check` → exit 0. Script Python qua stdin đối chiếu 11 vị trí giữa hai tài liệu, sự tồn tại của mục/bước/AC và liên kết → PASS; đối chiếu các ô mô tả/lựa chọn/trạng thái/câu trả lời cũ → giữ nguyên. Không thay sequence nên không kết xuất lại. |
+| Phần AI viết / nhóm sửa | AI bổ sung vị trí và nhật ký; chưa có chỉnh sửa nghiệp vụ của nhóm, không xác nhận hay đóng OQ. |
+
+Prompt nguyên văn:
+
+    bổ sung vị trí của vấn đề/câu hỏi mở cho vấn đề trong đặc tả quy trình
