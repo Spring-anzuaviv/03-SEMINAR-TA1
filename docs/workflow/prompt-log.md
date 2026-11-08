@@ -409,3 +409,39 @@ Lệnh và kết quả kiểm chứng:
 Prompt nguyên văn:
 
     bổ sung vị trí của vấn đề/câu hỏi mở cho vấn đề trong đặc tả quy trình
+
+### P-17 – Thiết kế lại quy trình US-PAY-01 từ lúc bấm nút, tiếp tục trong v1
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace (chờ nhóm điền họ tên) |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; Java 27.0.1; PlantUML 1.2024.3 |
+| Vai trò / skill / version | ba rồi design / naming-versioning, sys-spec, sequence-diagram / v1 theo yêu cầu rõ ràng của người dùng |
+| Nguồn đã đọc | AGENTS.md; TA-SPEC §1–6; sys-us-01-v1.md; OQ chung v1; ai-review-02-v1.md để biết tình trạng bản cũ; workflow và skill dùng chung; Program.cs/ContractService.cs. Chưa đọc trực tiếp TA-PDF trong lần sửa. |
+| File đầu ra | [sys-us-01-v1.md](../analysis/payment-management/v1/sys-us-01-v1.md), [open-questions-v1.md](../analysis/payment-management/v1/open-questions-v1.md), [seq-us-01-v1.puml](../design/payment-management/v1/diagrams/seq-us-01-v1.puml) và [SVG](../design/payment-management/v1/diagrams/seq-us-01-v1.svg); mục nhật ký này. |
+| Nội dung sửa | Use case bắt đầu khi bấm “Lập bảng thanh toán”; mở form, chọn hợp đồng, nhập/chọn kỳ, tải/chọn bảng giá, sinh và xem trước dòng/tổng, kiểm tra, Lưu nháp, xác nhận kết quả. Có quay lại vùng nhập khi lỗi/đổi lựa chọn; chưa tạo Draft khi chỉ mở/xem trước/đóng form. Sequence có lifeline UI và vòng chọn dữ liệu. Giữ ID AC-01..20, thêm AC-21..26; đồng bộ vị trí/ảnh hưởng của 11 OQ. |
+| Phân loại xác nhận | P-17 xác nhận điểm bắt đầu và lựa chọn bảng giá về mặt tương tác; không xác nhận chính sách giá, kỳ, VAT/làm tròn, quyền sửa hay mốc nguồn. Đề xuất nhóm trong OQ-US03-03 vẫn chờ khách hàng xác nhận; chặn công thức tiền cuối cùng, không chặn mở form/chọn dữ liệu. Chưa đánh giá Đúng/Sai/Thừa hoặc coi toàn bộ nhận xét R02 là đã được nhóm chấp nhận. |
+| Version / bảo toàn | Ban đầu AI chọn v2 và tạo bốn bản sao baseline sys-us-03/04 và seq-us-03/04. Người dùng yêu cầu giữ v1; AI đã xóa đúng bốn file mới chưa track này. Không còn thay đổi v2 từ lượt này, các file v2 đã có được giữ nguyên. Không sửa báo cáo review, TA-SPEC, TA-PDF hay src/. Báo cáo ai-review-02-v1.md còn phản ánh bản trước lần sửa, chưa review lại. |
+| Phần AI viết / nhóm sửa | AI sửa đặc tả, sequence, OQ, SVG và nhật ký. Người dùng sửa cách hiểu về đầu vào use case và yêu cầu version. Chưa tạo commit; chưa phê duyệt thiết kế toàn bộ. |
+| Kiểm chứng | Kết quả cuối ghi ngay dưới các prompt; không có test chạy ứng dụng hay phép đo hiệu năng. |
+
+Prompt nguyên văn (lượt yêu cầu thiết kế lại):
+
+```text
+cách viết và hiểu quy trình chưa đúng, chức năng lập bảng thanh toán bắt đầu từ lúc nhân viên bấm vào nút lập bảng thanh toán, sau đó thực hiện các thao tác khác như kiểm tra, nhập thông tin, chọn kỳ thanh toán, bảng giá, ...
+
+hãy thực hiện thiết kế lại. quy trình chưa đúng
+```
+
+Prompt nguyên văn (lượt điều chỉnh version):
+
+```text
+lưu ý, đây vẫn chỉ là v1, khi nào tôi yêu cầu mới thực hiện thành v2.
+```
+
+Kiểm chứng P-17:
+
+- Đối chiếu cấu trúc/truy vết qua Python stdin: PASS — 26 AC không trùng, 17 nhánh thay thế có AC và vị trí sequence, 11 OQ dùng cùng hàng/vị trí giữa đặc tả và OQ chung; bảng Markdown và liên kết cục bộ hợp lệ.
+- `java -jar C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -checkonly docs/design/payment-management/v1/diagrams/seq-us-01-v1.puml` → exit 0; thay `-checkonly` bằng `-tsvg` → exit 0, SVG hợp lệ. Đã chạy `-DPLANTUML_LIMIT_SIZE=22000 -tpng -o <TEMP>/codex-us01-ui-redesign` và xem PNG bằng view_image để kiểm tra bố cục tổng thể; PNG tạm không ghi vào repo.
+- `& C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe -X utf8 scripts/verify_agent_config.py` → `RESULT: PASS (0 failed checks)`; `git diff --check` → exit 0.
+- Script Python qua stdin kiểm tra thứ tự: bấm nút → mở form → chọn hợp đồng → kỳ → giá → tính xem trước → yêu cầu lưu → ghi CSDL: PASS. So sánh hash trước/sau cho các file ngoài phạm vi: nguồn nghiệp vụ, báo cáo review, tài liệu US khác và v2 đã có giữ nguyên; bốn bản sao v2 tạm đã xóa. So sánh hàng OQ: giữ ID, câu hỏi và lựa chọn, không tự ghi câu trả lời nghiệp vụ.
