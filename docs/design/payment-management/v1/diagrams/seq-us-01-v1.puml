@@ -1,0 +1,373 @@
+@startuml seq-us-01-v1
+title Lập bảng thanh toán từ màn hình (US-PAY-01) – v1
+' Phiên bản: v1 | Cập nhật: 08/11/2026 | AI: Codex / GPT-6 | Prompt: P-17
+' Đầu vào: docs/analysis/payment-management/v1/sys-us-01-v1.md, open-questions-v1.md.
+' Mục đích: mở form -> chọn hợp đồng -> kỳ -> bảng giá -> xem trước -> lưu Draft.
+' Phạm vi: create và update Draft; PAY-01..03; NFR-PAY-01/02.
+' Nguồn: TA-SPEC §1, §2, §3, §4.1, §5 PAY-01..03, PAY-08, §6; hướng dẫn người dùng P-17.
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval; người dùng yêu cầu tiếp tục ở v1.
+' Kết xuất: 08/11/2026 – PlantUML 1.2024.3 -checkonly và -tsvg thành công; SVG cùng tên.
+' QA: đã kết xuất PNG vào TEMP và xem bố cục tổng thể; chi tiết P-17.
+'
+' Đối chiếu SYS -> sequence:
+'  1-3: Mở form; A2: auth; A3: tải lỗi/danh sách rỗng.
+'  4-5: chọn hợp đồng; A5: hợp đồng không hợp lệ; A10: nguồn lỗi.
+'  6-8: nhập kỳ và tải giá; A7: kỳ/trùng/không có giá; A10: nguồn lỗi.
+'  9-11: chọn giá, đọc sản lượng, tính, xem trước; A9: thiếu/sai giá/chưa đối soát/dữ liệu tính.
+'  12/A12: đổi lựa chọn trong loop, xóa phụ thuộc; A13: đóng form trước lưu.
+'  13-14/A14: Lưu nháp và tái kiểm tra phía server; A10: nguồn lỗi.
+'  15/A15/A15.1/A15.2: giao dịch create, audit, xung đột/lỗi/kết quả commit chưa rõ.
+'  16: trả id/version cùng Draft sau commit.
+'  U1-U6: mở dữ liệu Draft/version -> sửa -> candidate -> cập nhật có điều kiện -> audit -> response.
+'  AU1: không có/lỗi đọc; AU2: sai quyền/trạng thái; AU4: dữ liệu/token; AU5/AU5.1: xung đột/lưu.
+'  AC-US01-01..26: bảng §3 của SYS; OQ giữ đúng ID ở SYS §2.
+'
+' Tên dùng tạm – cần đồng bộ vào 03/class/API khi làm bộ thiết kế:
+'  UI: PaymentForm; API: PaymentController; Service: PaymentService.
+'  openCreateForm, selectContract, selectPeriod, preview, create, openDraft, update.
+'  IContractReader.listCandidates/getContract; IPriceReader.listCandidates/getPriceList;
+'  IQuantityReader.getQuantities; PaymentRepository.findConflict/getById/create/update.
+'  AuditLog.append; PaymentDatabase.begin/commit/rollback.
+'  candidate = dữ liệu server đã xác thực/tính; cùng candidate được lưu, audit after và response.
+'  version có trong response create/openDraft/update; UI gửi expectedVersion khi update.
+'  Mã lỗi tạm: 401 UNAUTHENTICATED; 403 FORBIDDEN; 404 NOT_FOUND;
+'  400 INVALID_INPUT/INVALID_PERIOD/VERSION_REQUIRED;
+'  409 CONTRACT_NOT_ACTIVE/PAYMENT_EXISTS/PRICE_NOT_SUITABLE/QUANTITY_NOT_RECONCILED/
+'      INVALID_STATE/CONCURRENT_MODIFICATION;
+'  503 SOURCE_UNAVAILABLE/RESULT_UNKNOWN; 500 PERSISTENCE_ERROR; thành công 200/201.
+'  Chưa chốt endpoint; result.code là một giá trị loại trừ nhau do server trả.
+'  Ưu tiên kỹ thuật: auth -> quyền truy cập -> đọc thành công -> tồn tại/Active -> kỳ/trùng -> giá -> đối soát -> tính.
+'  Không phân loại giá/đối soát khi reader chưa trả được dữ liệu.
+'
+' [ĐỀ XUẤT KỸ THUẬT] Lưu bảng/dòng và audit cùng giao dịch; duy nhất nguyên tử khi ghi,
+'  không chỉ kiểm tra trước; optimistic version cho update, snapshot để truy lại PAY-03.
+'  Thay thế: chỉ kiểm tra trước ghi / audit sau commit / ghi đè không version / khóa bi quan.
+'  Lý do: tránh lập trùng, thiếu audit hoặc mất cập nhật; giao dịch không khóa các module nguồn.
+'  Tác động: audit lỗi thì không lưu; xung đột cần kiểm tra lại; DB/driver/cơ chế xác minh commit chưa chọn.
+'  Phạm vi duy nhất Blocked by OQ-01/OQ-US05-02, không chốt khóa tháng/quý.
+'  Mở form/xem trước không ghi bảng; chọn giá là tương tác P-17, tiêu chí giá vẫn OQ-US01-01.
+' AS-IS: Program.cs và ContractService.cs đã đọc lại, chỉ có demo hợp đồng/in-memory.
+'  Lifeline UI/payment/reader/audit/DB dưới đây là TO-BE, không tuyên bố đã triển khai.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+actor "NVKD" as U
+boundary "PaymentForm\nGiao diện" as UI
+participant "PaymentController" as API
+control "PaymentService" as S
+participant "IContractReader\n<<read-only>>" as C
+participant "IPriceReader\n<<read-only>>" as P
+participant "IQuantityReader\n<<read-only>>" as Q
+participant "PaymentRepository" as R
+participant "AuditLog" as A
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over UI, S #FFF4DB
+  Các cờ formOpen/contractValid/periodValid/previewAccepted là trạng thái UI, không phải trạng thái bảng.
+  OQ-01/OQ-US05-02: kỳ/duy nhất; OQ-US01-03: phạm vi quyền.
+  OQ-US01-01, OQ-US01-04, OQ-US01-05: giá/dòng/mốc nguồn; OQ-US03-03: xử lý tiền cuối cùng.
+  OQ-US01-02: trường sửa; OQ-04/OQ-US03-07: mở sửa Rejected.
+  Các OQ vẫn mở, không phải mã lỗi runtime. NFR-PAY-02: ≤3 giây, <200 dòng; chưa đo, OQ-US01-06.
+end note
+
+note over API, S
+  Mọi request đều kiểm tra phiên/vai trò phía server; không dựa vào việc nút còn hiển thị.
+  Sai phiên/quyền trả UNAUTHENTICATED/FORBIDDEN và dừng request đó [A2/AU2].
+  Các kết quả kiểm tra bên dưới chỉ dùng dữ liệu nguồn khi thao tác đọc đã thành công.
+end note
+
+alt [NVKD thực hiện lập mới]
+  == 1. Mở màn hình trước khi chọn dữ liệu ==
+  U -> UI : Bấm "Lập bảng thanh toán" [1]
+  UI -> API : openCreateForm()
+  API -> API : Kiểm tra phiên/vai trò [2]
+  alt [authenticated = false]
+    break A2 – Không mở được chức năng
+      API --> UI : 401 UNAUTHENTICATED
+      UI --> U : Yêu cầu đăng nhập
+    end
+  else [authenticated = true and role != NVKD]
+    break A2 – Không có quyền
+      API --> UI : 403 FORBIDDEN
+      UI --> U : Thông báo không được phép
+    end
+  else [authenticated = true and role = NVKD]
+    API -> S : openCreateForm(currentUser)
+    S -> C : listCandidates(currentUser)\nPhạm vi: Blocked by OQ-US01-03
+    C --> S : contracts / lỗi
+    S --> API : formData / SOURCE_UNAVAILABLE
+    API --> UI : Kết quả tải form
+    alt [formData được tải]
+      UI --> U : Hiện biểu mẫu trống, danh sách hợp đồng [3]\nNếu danh sách rỗng: thông báo chưa có hợp đồng [A3]
+    else [tải form lỗi]
+      break A3 – Kết thúc lượt mở lỗi, có thể bấm thử lại
+        UI --> U : Báo lỗi tải dữ liệu; chưa có Draft
+      end
+    end
+  end
+
+  == 2. Nhập/chọn dữ liệu và xem kết quả trước khi lưu ==
+  loop [formOpen and not previewAccepted] – thao tác chọn/đổi/kiểm tra
+    opt [NVKD đóng biểu mẫu trước lưu]
+      U -> UI : Đóng biểu mẫu [A13]
+      UI -> UI : formOpen = false; xóa dữ liệu nhập cục bộ
+      note right of UI : Không gọi create/cancel. Chưa có bảng để chuyển Cancelled.
+    end
+
+    opt [formOpen and (chưa chọn hoặc đổi hợp đồng)]
+      U -> UI : Chọn hợp đồng [4]
+      UI -> UI : Xóa kỳ, giá và preview phụ thuộc; periodValid=false [A12]
+      UI -> API : selectContract(contractId)
+      API -> S : selectContract(contractId, currentUser)
+      S -> C : getContract(contractId)
+      C --> S : contract / null / lỗi
+      S -> S : Kiểm tra quyền và Active [5]\nMốc: OQ-US01-05; quyền: OQ-US01-03
+      S --> API : result(code, contract, periodConfig)
+      API --> UI : result
+      alt [result.code = OK]
+        UI -> UI : contractValid = true
+        UI --> U : Hiện thông tin hợp đồng và vùng nhập kỳ [5]
+      else [result.code != OK]
+        UI -> UI : contractValid = false; periodValid = false
+        UI --> U : Báo lỗi tại form; chọn lại hợp đồng [A5/A10]
+      end
+    end
+
+    opt [formOpen and contractValid and (chưa nhập hoặc đổi kỳ)]
+      U -> UI : Nhập/chọn kỳ thanh toán [6]
+      UI -> UI : Xóa bảng giá và preview cũ [A12]
+      UI -> API : selectPeriod(contractId, period)
+      API -> S : selectPeriod(contractId, period, currentUser)
+      S -> S : Kiểm tra kỳ theo cấu hình\nBlocked by OQ-01
+      opt [kỳ hợp lệ]
+      S -> R : findConflict(contractId, period, uniquenessPolicy) [7]
+      R --> S : conflict / không trùng / lỗi
+      note right of R : Scope chưa chốt: OQ-01/OQ-US05-02. Không coi lỗi đọc là không trùng.
+      opt [kỳ hợp lệ and tra trùng thành công and không xung đột]
+        S -> P : listCandidates(contractId, period)
+        P --> S : priceLists / rỗng / lỗi
+      end
+      end
+      S --> API : result(code, priceLists)
+      API --> UI : result
+      alt [result.code = OK]
+        UI -> UI : periodValid = true
+        UI --> U : Hiển thị bảng giá có thể chọn [8]
+      else [result.code != OK]
+        UI -> UI : periodValid = false
+        UI --> U : Báo lỗi kỳ/trùng/không có giá hoặc lỗi nguồn [A7/A10]\nCho sửa kỳ hoặc hợp đồng
+      end
+    end
+
+    opt [formOpen and contractValid and periodValid and (chưa chọn hoặc đổi bảng giá)]
+      U -> UI : Chọn bảng giá [9]
+      UI -> API : preview(contractId, period, priceListId)
+      API -> S : preview(selection, currentUser)
+      S -> P : getPriceList(priceListId)
+      P --> S : giá / null / lỗi
+      S -> Q : getQuantities(contractId, period)
+      Q --> S : sản lượng, trạng thái đối soát / lỗi
+      S -> S : Nếu đọc thành công: kiểm tra giá phù hợp,\nĐã đối soát, ánh xạ dòng, đủ dữ liệu [10]
+      note right of S
+        Lỗi reader ưu tiên SOURCE_UNAVAILABLE.
+        Chỉ xét thiếu giá/đối soát khi đã đọc được nguồn.
+        OQ-US01-01, OQ-US01-04: giá, dòng và tập rỗng; không tự thay bằng 0.
+      end note
+      alt [validation.code = OK]
+        loop [mỗi dòng được xác định từ nguồn theo chính sách đã xác nhận]
+          S -> S : lineAmount = quantity * unitPriceAtCalculation [10]
+        end
+        S -> S : Tổng hợp tổng và ngữ cảnh lần tính\nXử lý tiền cuối: Blocked by OQ-US03-03
+        S --> API : preview(lines, total, calculationContext)
+        API --> UI : Kết quả xem trước
+        UI --> U : Hiện dịch vụ/sản lượng/đơn giá/thành tiền/tổng [11]
+        U -> UI : Kiểm tra kết quả [12]
+        alt [NVKD muốn đổi lựa chọn]
+          UI -> UI : previewAccepted = false; vô hiệu preview cũ [A12]\nQuay đúng vùng hợp đồng/kỳ/giá cần đổi
+        else [NVKD chấp nhận dữ liệu hiển thị]
+          UI -> UI : previewAccepted = true
+        end
+      else [validation.code != OK]
+        S --> API : INVALID_INPUT / PRICE_NOT_SUITABLE /\nQUANTITY_NOT_RECONCILED / SOURCE_UNAVAILABLE
+        API --> UI : result(code)
+        UI --> U : Báo lỗi, giữ form để chọn lại giá/kỳ [A9/A10]
+      end
+    end
+    note right of UI
+      A12: phản hồi của lựa chọn cũ đến muộn bị bỏ qua.
+      Người dùng sửa từ vùng sai, không phải mở lại use case.
+      Những lượt UI chưa lưu không tạo Draft/audit thay đổi bảng.
+    end note
+  end
+
+  alt [formOpen = false]
+    UI --> U : Kết thúc nhập, chưa tạo bảng [A13]
+  else [formOpen and previewAccepted]
+    == 3. Lưu nháp sau khi kiểm tra ==
+    U -> UI : Bấm "Lưu nháp" [13]
+    UI -> API : create(selection, calculationContext)
+    API -> S : create(selection, calculationContext, currentUser)
+    S -> S : Tái kiểm tra phiên/quyền; không tin tổng từ client [14]
+    S -> C : getContract(contractId)
+    C --> S : hợp đồng / lỗi
+    S -> R : findConflict(contractId, period, uniquenessPolicy)
+    R --> S : kết quả tra trùng
+    S -> P : getPriceList(priceListId)
+    P --> S : dữ liệu giá / lỗi
+    S -> Q : getQuantities(contractId, period)
+    Q --> S : sản lượng và đối soát / lỗi
+    S -> S : Kiểm tra lại PAY-01..03; lập candidate hợp lệ phía server [14]
+    note right of S #FFF4DB
+      Nếu nguồn thay đổi từ lúc xem trước: Blocked by OQ-US01-01, OQ-US01-04, OQ-US01-05.
+      Chưa chọn giữ kết quả cũ/tính lại/xác nhận lại.
+      Giao dịch lưu chỉ được thiết kế cho candidate đủ điều kiện theo chính sách đã xác nhận.
+      Phần công thức tiền cuối cùng vẫn OQ-US03-03; không tự thêm VAT.
+    end note
+    alt [validation.code != OK]
+      S --> API : result(code, fieldErrors)
+      API --> UI : Lỗi kiểm tra / SOURCE_UNAVAILABLE
+      UI --> U : Giữ form, chỉ rõ lỗi; quay bước chọn tương ứng [A14/A10]
+    else [validation.code = OK theo chính sách được xác nhận]
+      group Transaction create – bảng/dòng và audit [15]
+        S -> DB : begin()
+        DB --> S : beginResult
+        alt [beginResult = error]
+          S --> API : PERSISTENCE_ERROR [A15.1]
+        else [beginResult = OK]
+          S -> R : create(candidate, uniquenessPolicy)
+          R -> DB : Ghi bảng Draft, dòng, tổng, version\nBảo đảm duy nhất nguyên tử
+          DB --> R : saveResult
+          R --> S : saveResult
+          alt [saveResult = conflict]
+            S -> DB : rollback()
+            S --> API : PAYMENT_EXISTS [A15]
+          else [saveResult = error]
+            S -> DB : rollback()
+            S --> API : PERSISTENCE_ERROR [A15.1]
+          else [saveResult = OK]
+            S -> A : append(create, actorId, now,\nbefore=chưa có bảng, after=candidate + Draft)
+            A -> DB : Ghi audit cùng transaction
+            DB --> A : auditResult
+            A --> S : auditResult
+            alt [auditResult = error]
+              S -> DB : rollback()
+              S --> API : PERSISTENCE_ERROR [A15.1]
+            else [auditResult = OK]
+              S -> DB : commit()
+              DB --> S : commitOutcome
+              alt [commitOutcome = committed]
+                S --> API : created(paymentId, candidate, status=Draft, version) [16]
+              else [commitOutcome = definitelyNotCommitted]
+                S -> DB : rollback() nếu giao dịch còn mở
+                S --> API : PERSISTENCE_ERROR [A15.1]
+              else [commitOutcome = unknown]
+                S --> API : RESULT_UNKNOWN [A15.2]
+                note right of S : Chưa chọn DB/driver/cơ chế xác minh. Không tự retry create.
+              end
+            end
+          end
+        end
+      end
+      API --> UI : result
+      alt [result = created]
+        UI --> U : Hiển thị bảng Draft đã lưu, id và version [16]
+      else [result = PAYMENT_EXISTS]
+        UI --> U : Xung đột kỳ; giữ form để kiểm tra [A15]
+      else [result = PERSISTENCE_ERROR]
+        UI --> U : Báo lỗi lưu; không lưu một phần [A15.1]
+      else [result = RESULT_UNKNOWN]
+        UI --> U : Chưa xác định kết quả lưu; cần kiểm tra trước khi gửi lại [A15.2]
+      end
+    end
+  end
+
+else [NVKD mở sửa một Draft đã lưu]
+  == Sửa Draft – lối vào độc lập ==
+  U -> UI : Mở bảng và bấm "Chỉnh sửa" [U1]
+  UI -> API : openDraft(paymentId)
+  API -> S : openDraft(paymentId, currentUser)
+  S -> R : getById(paymentId)
+  R --> S : payment(data, status, version) / null / lỗi
+  S -> S : Kiểm tra phiên/quyền, tồn tại và Draft [U2]\nQuyền: OQ-US01-03; Rejected: OQ-04/OQ-US03-07
+  alt [openResult.code != OK]
+    S --> API : result(code)
+    API --> UI : Lỗi quyền/trạng thái/không tìm thấy/đọc [AU1/AU2]
+    UI --> U : Không mở form sửa từ dữ liệu không hợp lệ
+  else [openResult.code = OK]
+    S --> API : payment(data, status=Draft, version)
+    API --> UI : Dữ liệu và version
+    UI --> U : Hiện biểu mẫu sửa dữ liệu Draft [U2]
+    U -> UI : Sửa các thông tin được phép [U3]
+    note right of UI #FFF4DB
+      Trường được sửa/tính lại: Blocked by OQ-US01-02.
+      Đọc lại giá/dòng/hiệu lực: OQ-US01-01, OQ-US01-04, OQ-US01-05 khi liên quan.
+      Chưa thiết kế thành quyền ghi vào các module nguồn.
+    end note
+    U -> UI : Bấm "Lưu thay đổi" [U4]
+    UI -> API : update(paymentId, changes, expectedVersion)
+    API -> S : update(paymentId, changes, expectedVersion, currentUser)
+    S -> R : getById(paymentId) [U4]
+    R --> S : currentPayment(data, status, version) / null / lỗi
+    S -> S : Kiểm tra phiên/quyền, version bắt buộc, nội dung\nvalidatedCandidate = validateAndRecalculate(...) [U4]
+    note right of S
+      candidate là kết quả server, không phải changes thô.
+      Cách tính lại/phạm vi sửa còn OQ-US01-02/OQ-US03-03.
+    end note
+    alt [validation.code != OK]
+      S --> API : NOT_FOUND / PERSISTENCE_ERROR / INVALID_STATE / FORBIDDEN /\nINVALID_INPUT / VERSION_REQUIRED [AU1/AU2/AU4]
+      API --> UI : fieldErrors
+      UI --> U : Giữ form, sửa dữ liệu hoặc tải lại version [AU4]
+    else [validation.code = OK]
+      group Transaction update – giữ Draft, lưu candidate và audit [U5]
+        S -> DB : begin()
+        DB --> S : beginResult
+        alt [beginResult = error]
+          S --> API : PERSISTENCE_ERROR [AU5.1]
+        else [beginResult = OK]
+        S -> R : update(paymentId, validatedCandidate,\nexpectedStatus=Draft, expectedVersion)
+        R -> DB : Cập nhật có điều kiện; tăng version
+        DB --> R : writeResult
+        R --> S : writeResult
+        alt [writeResult = conflict]
+          S -> DB : rollback()
+          S --> API : CONCURRENT_MODIFICATION [AU5]
+        else [writeResult = error]
+          S -> DB : rollback()
+          S --> API : PERSISTENCE_ERROR [AU5.1]
+        else [writeResult = OK]
+          S -> A : append(update, actorId, now,\nbefore=currentPayment cùng version, after=validatedCandidate)
+          A -> DB : Ghi audit cùng transaction
+          DB --> A : auditResult
+          A --> S : auditResult
+          alt [auditResult = error]
+            S -> DB : rollback()
+            S --> API : PERSISTENCE_ERROR [AU5.1]
+          else [auditResult = OK]
+            S -> DB : commit()
+            DB --> S : commitOutcome
+            alt [commitOutcome = committed]
+              S --> API : updated(validatedCandidate, Draft, newVersion) [U6]
+            else [commitOutcome = definitelyNotCommitted]
+              S -> DB : rollback() nếu còn mở
+              S --> API : PERSISTENCE_ERROR [AU5.1]
+            else [commitOutcome = unknown]
+              S --> API : RESULT_UNKNOWN [AU5.1/A15.2]
+            end
+          end
+        end
+        end
+      end
+      API --> UI : result
+      UI --> U : Hiện Draft/version mới hoặc lỗi tương ứng [U6/AU5/AU5.1]
+    end
+  end
+end
+
+legend bottom
+  [ĐẶC TẢ] NVKD, nguồn chỉ đọc, Draft, PAY-01..03, audit: TA-SPEC §1/§2/§4.1/§5/§6.
+  [P-17] Bắt đầu khi bấm nút và chọn bảng giá trong quy trình; người dùng yêu cầu giữ v1.
+  [ĐỀ XUẤT KỸ THUẬT] Form, xem trước, Lưu nháp, version, transaction, HTTP/mã lỗi.
+endlegend
+@enduml
