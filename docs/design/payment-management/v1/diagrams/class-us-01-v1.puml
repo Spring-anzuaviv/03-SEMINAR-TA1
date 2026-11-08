@@ -1,0 +1,185 @@
+@startuml payment_management_sys_pay_01_class
+' Mục đích: cấu trúc lớp cho lập và sửa Draft, không phải ERD.
+' Phạm vi: SYS-PAY-01; không thiết kế duyệt, hủy, điều chỉnh Approved.
+' US/PAY: US-PAY-01; PAY-01..03; TA-SPEC §1, §2, §4.1, §5, §6; TA-PDF tr.1–3 theo sổ nguồn.
+' Nguồn bổ sung: BA SYS-PAY-01 v01 Mục 2–5; 01/03/04/05/07 cùng thư mục thiết kế.
+' Trạng thái: Design Pending Approval; các lớp mới là đề xuất TO-BE.
+title SYS-PAY-01 — Class diagram lập và sửa bảng thanh toán Draft
+left to right direction
+hide empty members
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 13
+skinparam classAttributeIconSize 0
+
+package "Điều phối và hợp đồng" {
+  class PaymentForm <<boundary>> {
+    +showPreview(view: DraftPreview): void
+    +showResult(view: PaymentView): void
+  }
+  class PaymentApplicationService <<control>> {
+    +prepareDraft(actor: ActorContext, contractId: int, period: PaymentPeriod): DraftPreview
+    +openDraft(actor: ActorContext, paymentId: UUID): PaymentView
+    +previewChanges(actor: ActorContext, input: DraftInput, sourceBaseline: UUID, paymentId: UUID?): DraftPreview
+    +refreshPreview(actor: ActorContext, input: DraftInput, sourceBaseline: UUID, acceptedSource: UUID): DraftPreview
+    +saveDraft(actor: ActorContext, command: SaveDraftCommand): PaymentView
+  }
+  interface PaymentStore {
+    +getDraft(paymentId: UUID): Payment
+    +getSnapshot(snapshotId: UUID): PaymentSourceSnapshot
+    +putSnapshot(snapshot: PaymentSourceSnapshot): UUID
+    +getSaveReceipt(actorId: string, requestId: UUID): PaymentSaveReceipt
+    +lookupConflict(command: SaveDraftCommand): ConflictLookup
+    +executeAtomicSave(command: SaveDraftCommand): PaymentSaveReceipt
+  }
+  class DraftInput <<DTO>> {
+    +contractId: int
+    +period: PaymentPeriod
+    +notes: string?
+    +lines: List<LineInput>
+  }
+  class LineInput <<DTO>> {
+    +lineKey: string
+    +serviceId: string
+    +quantity: decimal
+    +sourceLineRefs: List<string>
+  }
+  class SaveDraftCommand <<DTO>> {
+    +mode: SaveMode
+    +actorId: string
+    +requestHash: string
+    +input: DraftInput
+    +sourceBaseline: UUID
+    +requestId: UUID
+    +paymentId: UUID?
+    +expectedVersion: long?
+  }
+  enum SaveMode {
+    create
+    update
+  }
+}
+
+package "Mô hình bảng thanh toán" {
+  class Payment <<aggregate root>> {
+    -id: UUID
+    -contractId: int
+    -creatorId: string
+    -status: PaymentStatus
+    -period: PaymentPeriod
+    -notes: string?
+    -totalAmount: decimal
+    -sourceBaseline: UUID
+    -version: long
+    -createdAt: Instant
+    -updatedAt: Instant
+    +reviseDraft(actorId: string, input: DraftInput): void
+    +recalculate(): void
+  }
+  class PaymentLine {
+    -id: UUID
+    -lineKey: string
+    -serviceId: string
+    -sourceLineRefs: List<string>
+    -quantity: decimal
+    -unitPrice: decimal
+    -amount: decimal
+    +calculateAmount(): decimal
+  }
+  class PaymentPeriod <<value object>> {
+    +type: PeriodType
+    +year: int
+    +periodNumber: int
+  }
+  enum PeriodType {
+    Month
+    Quarter
+  }
+  enum PaymentStatus {
+    Draft
+    PendingApproval
+    Approved
+    Rejected
+    Cancelled
+  }
+  class PaymentSourceSnapshot {
+    +id: UUID
+    +actorId: string
+    +contractId: int
+    +period: PaymentPeriod
+    +priceListRef: string
+    +rawSource: JSON
+    +sourceFingerprint: string
+    +capturedAt: Instant
+  }
+  class PaymentAuditEntry {
+    +id: UUID
+    +paymentId: UUID
+    +actorId: string
+    +occurredAt: Instant
+    +action: SaveMode
+    +beforeData: JSON?
+    +afterData: JSON
+    +requestId: UUID
+  }
+  class PaymentSaveReceipt {
+    +actorId: string
+    +requestId: UUID
+    +requestHash: string
+    +paymentId: UUID
+    +responseStatus: int
+    +responseData: JSON
+    +completedAt: Instant
+  }
+}
+
+package "Modules nguồn <<external, read-only>>" {
+  interface PaymentSourceReader {
+    +readContract(contractId: int): ContractSnapshot
+    +readCurrentSources(contractId: int, period: PaymentPeriod): PaymentSourceSnapshot
+  }
+}
+
+PaymentForm ..> PaymentApplicationService
+PaymentApplicationService ..> PaymentSourceReader : chỉ đọc
+PaymentApplicationService ..> PaymentStore
+PaymentApplicationService ..> Payment : điều phối
+PaymentApplicationService ..> SaveDraftCommand
+DraftInput "1" *-- "0..*" LineInput
+DraftInput "0..*" --> "1" PaymentPeriod
+SaveDraftCommand "0..*" --> "1" DraftInput
+SaveDraftCommand ..> SaveMode
+Payment "1" *-- "0..*" PaymentLine : lines
+Payment "0..*" --> "1" PaymentPeriod
+Payment ..> PaymentStatus
+PaymentPeriod ..> PeriodType
+Payment "0..*" --> "1" PaymentSourceSnapshot : sourceBaseline
+Payment "1" --> "0..*" PaymentAuditEntry : audit
+Payment "1" --> "0..*" PaymentSaveReceipt : receipts
+PaymentStore ..> Payment
+PaymentStore ..> PaymentSourceSnapshot
+PaymentStore ..> PaymentSaveReceipt
+PaymentSourceSnapshot "0..*" --> "1" PaymentPeriod
+
+note bottom of PaymentLine
+  Blocked by CREATE-06, CREATE-07: gom dòng và decimal/làm tròn.
+  Blocked by CREATE-19: quyền sửa lượng khác số đã đối soát.
+  0..* chưa chốt quyền lưu bảng rỗng: CREATE-05, CREATE-11a.
+end note
+note bottom of PaymentSourceSnapshot
+  Raw source bất biến, tách phần NVKD sửa.
+  CREATE-20: chưa chốt cách hợp nhất nguồn mới.
+  OQ-D-01: chưa có bảo đảm snapshot nguyên tử xuyên nguồn.
+end note
+note bottom of PaymentPeriod
+  Tháng/quý đã xác nhận tại CREATE-01.
+  CREATE-16 còn mở với kỳ khác nhau nhưng chồng lấn.
+end note
+
+legend right
+  Các lớp/route/schema mới là đề xuất TO-BE; chưa có trong code.
+  [GIẢ ĐỊNH – Cần xác nhận] = phần Blocked by CREATE/OQ,
+  không phải quy tắc đã duyệt. ActorContext, DraftPreview,
+  PaymentView, ConflictLookup, ContractSnapshot là kiểu hợp đồng
+  mô tả tại 03/04, không phải entity lưu trữ mới.
+endlegend
+@enduml
