@@ -586,3 +586,22 @@ Kiểm chứng P-19:
 - So hash trước/sau → v1, nguồn TA, src/, US khác, review và lichsuchat-us-01.txt giữ nguyên. `git diff --check` → exit 0, chỉ có cảnh báo LF/CRLF của nhật ký.
 - `& C:/Users/phong/AppData/Roaming/uv/python/cpython-3.12.15-windows-x86_64-none/python.exe -X utf8 scripts/verify_agent_config.py` → `RESULT: FAIL (1 failed checks)`. Lỗi duy nhất: `docs/analysis/payment-management/v2/lichsuchat-us-01.txt` có sẵn trước lượt P-19 không thuộc quy ước tên của v2. Các kiểm tra khác PASS; không đổi tên/xóa file người dùng hoặc sửa checker để bỏ qua lỗi.
 - Không có kiểm thử chạy ứng dụng, xác minh dữ liệu nguồn tạo bảng giá, tích hợp auth/DB hoặc phép đo NFR trong lượt tài liệu này.
+
+### P-20 – Lưu báo cáo mục 2 riêng cho US-PAY-01
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 08/11/2026 / người dùng workspace |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15 |
+| Phạm vi | Lưu bảng tổng hợp đã thống nhất trong chat: vấn đề phát triển chức năng, vị trí/căn cứ, phân loại, phân tích/xử lý theo review người dùng và đánh giá AI thiếu/sai/thừa/đủ. |
+| Đầu vào | Phản hồi ngay trước P-20 trong chat; SYS/OQ/sequence v2; các xác nhận P-18/P-19; hai nhận xét kỹ thuật R04-02/03 còn ghi nhận. |
+| File đầu ra | [baocao-muc2-us-01.md](../analysis/payment-management/v2/baocao-muc2-us-01.md), tên và vị trí đúng yêu cầu rõ ràng của người dùng. Không tự đổi sang tên chuẩn khác hoặc chuyển thư mục review. |
+| Phần AI viết / nhóm sửa | AI lưu nội dung đã trình bày, chuyển cách xưng hô sang báo cáo và bổ sung liên kết nguồn. Cột đánh giá vẫn là AI tự đối chiếu theo yêu cầu, chưa giả làm đánh giá/phê duyệt của nhóm. Không ghi các vấn đề tạo version sớm, tên file hay cách trình bày thành vấn đề nghiệp vụ. |
+| Bảo toàn | File đích được đọc trước và đang trống. Không sửa TXT, lịch sử chat, SYS/OQ/sequence hoặc báo cáo review trong lượt này; chỉ thêm mục nhật ký này. |
+| Kiểm chứng | Python stdin: PASS — file UTF-8, 20 vấn đề yêu cầu/phân tích và 2 vấn đề kỹ thuật, hai bảng đủ 5 cột, liên kết cục bộ hợp lệ. `git diff --check`: exit 0, chỉ cảnh báo LF/CRLF của nhật ký. Checker workspace: `FAIL (1 failed checks)` ở quy tắc tên file, liệt kê `baocao-muc2-us-01.md` (tên người dùng chỉ định rõ) và `lichsuchat-us-01.txt` có sẵn; giữ nguyên tên yêu cầu, không sửa checker để bỏ qua. |
+
+Prompt nguyên văn, lưu dưới dạng chuỗi JSON để không diễn giải liên kết trong dữ liệu prompt thành liên kết tương đối của nhật ký:
+
+```json
+"lưu vào file [baocao-muc2-us-01.md\u005d(docs/analysis/payment-management/v2/baocao-muc2-us-01.md) "
+```
