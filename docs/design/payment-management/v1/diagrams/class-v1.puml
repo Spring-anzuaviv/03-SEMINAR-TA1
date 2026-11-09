@@ -64,12 +64,14 @@ package "PaymentManagement.Domain" {
     - Version : int
     + Lines : IReadOnlyList<PaymentLine>
     + RecalculateTotal() : decimal
+    + RequiredApproverRole() : UserRole
   }
   note right of PaymentSheet
     CreatedBy dùng cho PAY-07 – "người lập": OQ-US03-01.
     TotalAmount: thời điểm, VAT, làm tròn – OQ-US03-03.
     CancelReason bắt buộc hay không – OQ-US05-03.
     RejectionReason giới hạn độ dài – OQ-US03-04.
+    RequiredApproverRole(): PAY-06, dùng chung cho submit và approve/reject.
   end note
 
   class PaymentLine {
@@ -159,11 +161,10 @@ package "PaymentManagement.Application" {
   class PaymentApprovalService {
     + Approve(id : Guid, expectedVersion : int, user : CurrentUser) : Result
     + Reject(id : Guid, reason : string, expectedVersion : int, user : CurrentUser) : Result
-    - ResolveRequiredApprover(total : decimal) : UserRole
     - IsCreator(userId : string, sheet : PaymentSheet) : bool
   }
   note right of PaymentApprovalService
-    ResolveRequiredApprover: đúng 500.000.000 đ – Blocked by OQ-02.
+    Dùng PaymentSheet.RequiredApproverRole(): đúng 500.000.000 đ – Blocked by OQ-02.
     Reject → Rejected hay Draft – Blocked by OQ-04.
   end note
 

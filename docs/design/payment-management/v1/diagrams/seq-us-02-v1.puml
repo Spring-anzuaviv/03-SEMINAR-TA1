@@ -1,21 +1,23 @@
 @startuml seq-us-02-v1
+' Đồng bộ tên theo 03-detailed-design-v1 §1 và 04-api-contract-v1 (P-24, 09/11/2026); luồng và nhánh giữ nguyên.
 title Trình duyệt bảng thanh toán (US-PAY-02) – v1
 ' Phiên bản: v1 | Đầu vào: sys-us-02-v1.md; open-questions-v1.md | Prompt: P-16
 ' Mục đích: submit; phạm vi US-PAY-02, PAY-04/06, NFR-PAY-01
 ' Nguồn: TA-SPEC §2–3, §4.2–4.3, §5 PAY-04..08, §6; TA-PDF tr.1–3
 ' AC-US02-01..13; đối chiếu từng bước/nhánh tại 03-detailed-design-v1.md
 ' Trạng thái: Bản lần chạy đầu – Design Pending Approval
-' Tên participant/message/mã lỗi tạm: xem 03; không khẳng định AS-IS đã có.
+' Tên theo 03 §1; endpoint E9 (04); không khẳng định AS-IS đã có.
 autonumber
 skinparam shadowing false
 skinparam defaultFontName Segoe UI
 actor NVKD as U
 participant PaymentController as API
 participant PaymentService as S
-participant PaymentRepository as R
-participant AuditLog as A
+participant IPaymentRepository as R
+participant IAuditLog as A
+participant IUnitOfWork as UOW
 database Database as DB
-participant Notification as N
+participant INotifier as N
 actor "Người duyệt\nKTT / GĐKD" as Reviewer
 
 note over U,Reviewer
@@ -27,34 +29,34 @@ PAY-07 cấm tự duyệt thuộc US-PAY-03, không chặn người lập submit
 end note
 
 == SYS bước 1–2: yêu cầu và quyền ==
-U -> API: submit(id)
-API -> S: submit(id, currentUser)
-S -> S: checkSubmitPermission(currentUser, id)
+U -> API: POST /api/payment-sheets/{id}/submit (E9)\n{expectedVersion}
+API -> S: Submit(id, expectedVersion, currentUser)
+S -> S: Kiểm tra vai trò NVKD và quyền trên bảng
 break A2: chưa nhận diện người gửi
-  S --> API: UNAUTHENTICATED (401, tạm)
+  S --> API: UNAUTHENTICATED (401)
   API --> U: Không chuyển trạng thái
 end
 break A2: sai vai trò / không có quyền đã xác nhận
   note right of S: Blocked by OQ-US02-01 cho phạm vi từng bảng
-  S --> API: FORBIDDEN (403, tạm)
+  S --> API: FORBIDDEN (403)
   API --> U: Không chuyển trạng thái
 end
 
 == SYS bước 3: bảng và trạng thái ==
-S -> R: getById(id)
+S -> R: GetById(id)
 R -> DB: read(id)
 DB --> R: sheet(status, version, total, lines) / null
 R --> S: sheet / null
 break A3: không tìm thấy
-  S --> API: NOT_FOUND (404, tạm)
+  S --> API: NOT_FOUND (404)
   API --> U: Không tìm thấy bảng
 end
 break A3.1 / A6: status = PendingApproval (gửi lại sau lần thành công)
-  S --> API: DUPLICATE_SUBMIT (409, tạm)
+  S --> API: DUPLICATE_SUBMIT (409)
   API --> U: Không tạo chuyển trạng thái / audit mới
 end
 break A3.1: status = Approved hoặc Cancelled
-  S --> API: INVALID_STATE (409, tạm)
+  S --> API: INVALID_STATE (409)
   API --> U: Giữ trạng thái hiện có
 end
 break A3.1: status = Rejected
@@ -66,20 +68,20 @@ break A3.1: status = Rejected
 end
 
 == SYS bước 4: PAY-04 ==
-S -> S: validateSubmission(total, lines)
+S -> S: ValidateSubmission(sheet)
 break A4: total < 0
-  S --> API: NEGATIVE_TOTAL (400, tạm)
+  S --> API: NEGATIVE_TOTAL (400)
   API --> U: Chặn trình; giữ Draft
 end
 note right of S: total = 0 không bị chặn chỉ vì bằng 0 (AC-US02-03)
 break A4.1: thiếu dòng bắt buộc theo quy tắc sẽ xác nhận
   note right of S: Blocked by OQ-05; không tự liệt kê dòng bắt buộc
-  S --> API: REQUIRED_SERVICE_MISSING (400, tạm)
+  S --> API: REQUIRED_SERVICE_MISSING (400)
   API --> U: Bổ sung dòng bắt buộc; giữ Draft
 end
 
 == SYS bước 5: người nhận ==
-S -> S: resolveRequiredApprover(total)
+S -> S: sheet.RequiredApproverRole()
 alt total < 500.000.000, cơ sở tổng đã xác nhận
   note right of S: Vai trò KTT (TA-SPEC §4.3 và PAY-06)
 else total > 500.000.000, cơ sở tổng đã xác nhận
@@ -106,48 +108,41 @@ Hai request cùng đọc version v: chỉ một được lưu chuyển v → v+1
 Request còn lại gặp xung đột ở A6, không ghi đè hoặc thêm audit chuyển trạng thái.
 end note
 group Transaction — trạng thái + audit (DD-01, đề xuất)
-  S -> R: begin()
-  R -> DB: begin()
-  S -> R: transition(id, Draft, PendingApproval, expectedVersion)
+  S -> UOW: Begin()
+  S -> R: Transition(id, Draft, PendingApproval, expectedVersion)
   R -> DB: conditionalUpdate(id, Draft, expectedVersion)
   DB --> R: changed / conflict / storageError
   R --> S: changed / conflict / storageError
   alt A6: conflict — request đồng thời thắng trước / bảng đã đổi
-    S -> R: rollback()
-    R -> DB: rollback()
-    S --> API: CONCURRENT_CHANGE (409, tạm)
+    S -> UOW: Rollback()
+    S --> API: CONCURRENT_MODIFICATION (409)
     API --> U: Không ghi đè; không tạo chuyển trạng thái hoặc audit mới
   else A6.1: lỗi lưu trạng thái
-    S -> R: rollback()
-    R -> DB: rollback()
-    S --> API: PERSISTENCE_ERROR (500, tạm)
+    S -> UOW: Rollback()
+    S --> API: PERSISTENCE_ERROR (500)
     API --> U: Lưu thất bại; không gửi thông báo
   else cập nhật có điều kiện thành công
-    S -> A: append(actor, time, id, Draft, PendingApproval, submit, transaction)
-    A -> DB: appendAudit(transaction)
+    S -> A: Append(action=submit, actor, time, id, Draft → PendingApproval)
+    A -> DB: insert audit_entries (cùng giao dịch)
     DB --> A: saved / error
     A --> S: saved / error
     alt A6.1: lỗi ghi audit
-      S -> R: rollback()
-      R -> DB: rollback()
-      S --> API: PERSISTENCE_ERROR (500, tạm)
+      S -> UOW: Rollback()
+      S --> API: PERSISTENCE_ERROR (500)
       API --> U: Không lưu chuyển trạng thái dở dang; không gửi thông báo
     else ghi audit thành công
-      S -> R: commit()
-      R -> DB: commit()
-      DB --> R: committed / error
-      R --> S: committed / error
+      S -> UOW: Commit()
+      UOW --> S: committed / error
       alt A6.1: commit thất bại (chưa commit)
-        S -> R: rollback()
-        R -> DB: rollback()
-        S --> API: PERSISTENCE_ERROR (500, tạm)
+        S -> UOW: Rollback()
+        S --> API: PERSISTENCE_ERROR (500)
         API --> U: Thất bại; không gửi thông báo
       else commit thành công
         group SYS bước 7–8: thông báo theo §4.2
-          S -> N: notifySubmission(id, recipient)
+          S -> N: NotifySubmission(id, approverRole)
           note over S,N
           Blocked by OQ-US02-02: kênh / nội dung chưa chốt.
-          notifySubmission chỉ là ranh giới trách nhiệm tạm.
+          NotifySubmission là ranh giới trách nhiệm (DD-05).
           end note
           alt gửi thành công
             N -> Reviewer: Thông báo có bảng chờ duyệt (kênh chưa chốt)
@@ -172,6 +167,6 @@ legend bottom
   PAY-04: chống trùng tại lần gửi lại (A3.1) và ghi có điều kiện (A6).
   NFR-PAY-01: audit ai, lúc nào, Draft → PendingApproval; không audit chuyển giả.
   NFR-PAY-02: chỉ áp dụng lập bảng, không đặt SLA submit; chưa đo hiệu năng.
-  Tên/mã lỗi tạm và giao dịch là đề xuất, không phải thành phần AS-IS đã tồn tại.
+  Tên/mã lỗi theo 03 §1.3; giao dịch là đề xuất, không phải thành phần AS-IS đã tồn tại.
 endlegend
 @enduml
