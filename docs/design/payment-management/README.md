@@ -16,14 +16,14 @@ Mọi file thiết kế suy ra từ sys spec cùng version trong
 
 | Đề yêu cầu (mục 1) | File trong `v1/` | Bước | Đầu vào bắt buộc | Trạng thái |
 |---|---|---|---|---|
-| Tóm tắt yêu cầu | `01-requirements-summary-v1.md` | 3 | `sys-us-*-v1`, `open-questions-v1` | Chưa làm |
-| Sequence diagram | `diagrams/seq-us-01-v1.puml` … `seq-us-05-v1.puml` | 4 | `sys-us-NN-v1.md` cùng US | seq-us-05-v1 đã lập |
-| Kiến trúc | `02-architecture-design-v1.md`, `diagrams/component-v1.puml` | 5 | sequence v1, `src/Qtkd.Api/` | Chưa làm |
-| Class / state diagram | `03-detailed-design-v1.md`, `diagrams/class-v1.puml`, `diagrams/state-machine-v1.puml` | 6 | sequence, kiến trúc v1 | Chưa làm |
-| API contract | `04-api-contract-v1.md` | 7 | sequence, 03 v1 | Chưa làm |
-| Thiết kế dữ liệu | `05-data-design-v1.md` (+ `diagrams/erd-v1.puml`) | 8 | class, 04 v1 | Chưa làm |
-| (bổ sung) Quyết định kỹ thuật | `07-design-decisions-v1.md` | 9 | ghi dần | Chưa làm |
-| Ma trận truy vết | `06-traceability-matrix-v1.md` | 10 | toàn bộ v1 | Chưa làm |
+| Tóm tắt yêu cầu | `01-requirements-summary-v1.md` | 3 | `sys-us-*-v1`, `open-questions-v1` | Đã lập (P-21) |
+| Sequence diagram | `diagrams/seq-us-01-v1.puml` … `seq-us-05-v1.puml` | 4 | `sys-us-NN-v1.md` cùng US | Đủ 5 file |
+| Kiến trúc | `02-architecture-design-v1.md`, `diagrams/component-v1.puml` | 5 | sequence v1, `src/Qtkd.Api/` | Đã lập (P-21) |
+| Class / state diagram | `03-detailed-design-v1.md`, `diagrams/class-v1.puml`, `diagrams/state-machine-v1.puml` | 6 | sequence, kiến trúc v1 | Đã lập (P-21) |
+| API contract | `04-api-contract-v1.md` | 7 | sequence, 03 v1 | Đã lập (P-22) |
+| Thiết kế dữ liệu | `05-data-design-v1.md` (+ `diagrams/erd-v1.puml`) | 8 | class, 04 v1 | Đã lập (P-22) |
+| (bổ sung) Quyết định kỹ thuật | `07-design-decisions-v1.md` | 9 | ghi dần | DD-01..12 (P-21, P-22) |
+| Ma trận truy vết | `06-traceability-matrix-v1.md` | 10 | toàn bộ v1 | Đã lập (P-22) |
 | (tùy chọn) Bàn giao | `08-handoff-to-developer-v1.md` | – | toàn bộ v1 | Không bắt buộc |
 
 Ảnh kết xuất (`.svg`/`.png`) đặt cạnh file `.puml`, cùng tên gốc. Chưa kết xuất thì

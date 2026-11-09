@@ -5,7 +5,7 @@ description: Viết đặc tả use case hệ thống sys-us-NN-vK.md (actor, ti
 
 # Skill: sys-spec – Đặc tả use case hệ thống
 
-Vai trò: **ba** trong [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
+Vai trò: **ba** – [rules/ba.md](../../rules/ba.md), điểm vào [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
 [ngữ cảnh dùng chung](../_shared/payment-context.md) và
 [naming-versioning](../naming-versioning/SKILL.md) trước khi làm.
 
@@ -58,7 +58,7 @@ nêu thay đổi trong câu trả lời. Không ghi vào `v1/` khi đã có `ai-
      thêm SLA cho chức năng khác ngoài lập bảng.
    - Dòng cơ bản/thay thế phải đủ chi tiết để vẽ sequence (ai gửi gì cho hệ thống,
      hệ thống kiểm tra gì, kết quả gì) – sequence ở bước sau chỉ được vẽ từ đây.
-3. **Phần 2 – Điểm cần xác nhận**: bảng OQ theo mẫu AGENTS.md (ID, Vị trí mọi
+3. **Phần 2 – Điểm cần xác nhận**: bảng OQ theo mẫu ở [rules/common.md](../../rules/common.md) (ID, Vị trí mọi
    nguồn kèm trích dẫn ngắn, Loại, Mô tả, Lý do, Lựa chọn, Ảnh hưởng tới Phần 1,
    Trạng thái `Cần xác nhận`, Người/ngày/câu trả lời). Dùng `OQ-01..05` cho vấn đề
    đã giữ chỗ; vấn đề mới đặt `OQ-USNN-kk`. Mỗi `Blocked by OQ-…` ở Phần 1 phải có

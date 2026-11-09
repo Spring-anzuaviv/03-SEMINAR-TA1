@@ -1,6 +1,6 @@
 # Quy trình làm việc và minh chứng
 
-Áp dụng cho mọi vai trò trong [AGENTS.md](../../AGENTS.md). Tên file, version và
+Áp dụng cho mọi vai trò trong [AGENTS.md](../../AGENTS.md) và [rules/](../../rules/README.md). Tên file, version và
 thứ tự làm: [naming-versioning](../../skills/naming-versioning/SKILL.md).
 
 ## Vòng làm việc v1 → review → v2
@@ -34,6 +34,6 @@ Commit sau mỗi bước với message nêu file và version, vd.
 python scripts/verify_agent_config.py
 ```
 
-Kiểm tra AGENTS.md đủ mục, skill có front matter, liên kết cục bộ hợp lệ, checksum
+Kiểm tra AGENTS.md và rules/ đủ mục, skill có front matter, liên kết cục bộ hợp lệ, checksum
 TA-PDF/TA-SPEC không đổi và **tên file trong v1/v2 đúng quy ước**. Đạt kiểm tra
 không chứng minh nội dung phân tích/thiết kế đúng.

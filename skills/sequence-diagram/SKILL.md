@@ -5,7 +5,7 @@ description: Vẽ PlantUML sequence diagram seq-us-NN-vK.puml cho từng US củ
 
 # Skill: sequence-diagram – Sequence theo US/thao tác
 
-Vai trò: **design** trong [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
+Vai trò: **design** – [rules/design.md](../../rules/design.md), điểm vào [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
 [ngữ cảnh dùng chung](../_shared/payment-context.md) và
 [naming-versioning](../naming-versioning/SKILL.md).
 

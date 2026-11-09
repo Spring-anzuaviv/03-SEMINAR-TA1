@@ -5,7 +5,7 @@ description: Viết 05-data-design-vK.md (entity, trường/kiểu, PK/FK, cardi
 
 # Skill: data-design – Thiết kế dữ liệu
 
-Vai trò: **design** trong [AGENTS.md](../../AGENTS.md) (bước 6). Đọc AGENTS.md và
+Vai trò: **design** – [rules/design.md](../../rules/design.md), điểm vào [AGENTS.md](../../AGENTS.md) (bước 6). Đọc AGENTS.md và
 [ngữ cảnh dùng chung](../_shared/payment-context.md) và
 [naming-versioning](../naming-versioning/SKILL.md).
 

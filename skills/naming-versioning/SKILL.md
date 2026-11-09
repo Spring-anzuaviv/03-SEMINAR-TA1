@@ -6,7 +6,7 @@ description: Quy ước đặt tên file, thư mục version v1/v2, khối thôn
 # Skill: naming-versioning – Đặt tên, version và thứ tự làm
 
 Vai trò: **mọi vai trò** trong [AGENTS.md](../../AGENTS.md). Đọc trước khi tạo,
-đổi tên hoặc sao chép bất kỳ file đầu ra nào. AGENTS.md vẫn ưu tiên khi khác biệt.
+đổi tên hoặc sao chép bất kỳ file đầu ra nào. AGENTS.md và [rules/](../../rules/README.md) vẫn ưu tiên khi khác biệt.
 Kiểm tra tự động: `python scripts/verify_agent_config.py` (mục naming).
 
 ## 1. Hai version

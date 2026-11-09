@@ -5,7 +5,7 @@ description: Vẽ PlantUML component-vK, class-vK, state-machine-vK (và use cas
 
 # Skill: uml-diagrams – Component, class, state machine
 
-Vai trò: **design** trong [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
+Vai trò: **design** – [rules/design.md](../../rules/design.md), điểm vào [AGENTS.md](../../AGENTS.md). Đọc AGENTS.md,
 [ngữ cảnh dùng chung](../_shared/payment-context.md) và
 [naming-versioning](../naming-versioning/SKILL.md). Sequence dùng skill
 [sequence-diagram](../sequence-diagram/SKILL.md).

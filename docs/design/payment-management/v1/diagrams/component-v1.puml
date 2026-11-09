@@ -1,0 +1,110 @@
+@startuml component-v1
+title Component – Module Bảng thanh toán – v1
+' Phiên bản: v1 | Đầu vào: seq-us-01..05-v1.puml, sys-us-01..05-v1.md, 03-detailed-design-v1.md, src/Qtkd.Api/ | Prompt: P-21
+' Mục đích: ranh giới module, thành phần, interface chỉ đọc tới module khác
+' Phạm vi: US-PAY-01..05; PAY-01..08; NFR-PAY-01
+' Nguồn: TA-SPEC §1, §2, §4, §6; TA-PDF tr.1-3
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam componentStyle uml2
+
+actor "NVKD" as NVKD
+actor "KTT" as KTT
+actor "GĐKD" as GDKD
+
+component "Giao diện người dùng\n(form lập/sửa, duyệt, điều chỉnh, hủy)" as UI <<TO-BE>>
+
+node "Qtkd.Api (ASP.NET Core .NET 8)" {
+  component "Contract demo\n(Program.cs, ContractService)" as AsIsContract <<AS-IS>>
+
+  package "Module Bảng thanh toán" <<TO-BE>> {
+    component "PaymentController" as Ctrl
+    component "PaymentService\n(create, update, submit, cancel)" as PaySvc
+    component "PaymentApprovalService\n(approve, reject)" as ApprSvc
+    component "PaymentAdjustmentService\n(adjust – Blocked by OQ-03)" as AdjSvc
+    component "PaymentRepository" as Repo
+    component "AdjustmentRepository\n(chỉ phương án A – OQ-03)" as AdjRepo
+    component "AuditLog\n(append-only)" as Audit
+    component "UnitOfWork" as Uow
+    component "Notifier\n(kênh: OQ-US02-02, OQ-US03-05)" as Notif
+
+    interface "HTTP /api/payment-sheets" as IHttp
+    interface "IPaymentRepository" as IRepo
+    interface "IAdjustmentRepository" as IAdjRepo
+    interface "IAuditLog" as IAudit
+    interface "IUnitOfWork" as IUow
+    interface "INotifier" as INotif
+  }
+
+  component "Xác thực / phân quyền" as Auth <<TO-BE>>
+}
+
+package "Module khác <<external, read-only>>" {
+  component "Hợp đồng" as ContractMod
+  component "Bảng giá" as PriceMod
+  component "Sản lượng" as QtyMod
+  interface "IContractReader" as ICR
+  interface "IPriceReader" as IPR
+  interface "IQuantityReader" as IQR
+}
+
+database "CSDL bảng thanh toán\n(chưa chọn)" as DB <<TO-BE>>
+component "Kế toán / xuất hóa đơn\n(ngoài module – OQ-US03-06)" as Acc
+
+NVKD --> UI
+KTT --> UI
+GDKD --> UI
+UI ..> IHttp
+Ctrl - IHttp
+Ctrl ..> Auth : xác thực, vai trò
+Ctrl ..> PaySvc
+Ctrl ..> ApprSvc
+Ctrl ..> AdjSvc
+
+Repo - IRepo
+AdjRepo - IAdjRepo
+Audit - IAudit
+Uow - IUow
+Notif - INotif
+
+PaySvc ..> IRepo
+PaySvc ..> IAudit
+PaySvc ..> IUow
+PaySvc ..> INotif : NotifySubmission
+PaySvc ..> ICR : chỉ đọc
+PaySvc ..> IPR : chỉ đọc
+PaySvc ..> IQR : chỉ đọc
+ApprSvc ..> IRepo
+ApprSvc ..> IAudit
+ApprSvc ..> IUow
+ApprSvc ..> INotif : NotifyResult
+AdjSvc ..> IRepo
+AdjSvc ..> IAdjRepo
+AdjSvc ..> IAudit
+AdjSvc ..> IUow
+
+Repo ..> DB
+AdjRepo ..> DB
+Audit ..> DB
+Uow ..> DB
+
+ContractMod - ICR
+PriceMod - IPR
+QtyMod - IQR
+AsIsContract ..> ICR : cần adapter\n(chưa có)
+
+Acc ..> IHttp : đọc bảng Approved\n(ngoài phạm vi)
+
+note right of ContractMod
+  AS-IS chỉ có demo hợp đồng in-memory.
+  Bảng giá, sản lượng chưa tồn tại trong src/.
+  Không có thao tác ghi tới 3 module này (TA-SPEC §1).
+end note
+
+legend right
+  <<AS-IS>> = có trong src/Qtkd.Api/ (đã đọc 09/11/2026)
+  <<TO-BE>> = đề xuất, chưa triển khai
+  Phần Blocked by OQ = [GIẢ ĐỊNH – Cần xác nhận], chưa phải thiết kế cuối
+endlegend
+@enduml

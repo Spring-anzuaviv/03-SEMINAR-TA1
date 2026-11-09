@@ -12,12 +12,12 @@
 
 | File | Nội dung | Người phụ trách | Trạng thái |
 |---|---|---|---|
-| `sys-us-01-v1.md` | US-PAY-01 Lập bảng thanh toán | | Chưa làm |
-| `sys-us-02-v1.md` | US-PAY-02 Trình duyệt | | Chưa làm |
-| `sys-us-03-v1.md` | US-PAY-03 Duyệt / từ chối | | Chưa làm |
-| `sys-us-04-v1.md` | US-PAY-04 Điều chỉnh bảng đã duyệt | | Chưa làm |
+| `sys-us-01-v1.md` | US-PAY-01 Lập bảng thanh toán | | Đã lập (v1) |
+| `sys-us-02-v1.md` | US-PAY-02 Trình duyệt | | Đã lập (v1) |
+| `sys-us-03-v1.md` | US-PAY-03 Duyệt / từ chối | Đan Anh | Đã lập (v1); AC bổ sung P-22 |
+| `sys-us-04-v1.md` | US-PAY-04 Điều chỉnh bảng đã duyệt | Lộc | Đã lập (v1); OQ + AC bổ sung P-22 |
 | `sys-us-05-v1.md` | US-PAY-05 Hủy bảng nháp | BA Team | Đã lập (v1) |
-| `open-questions-v1.md` | Bảng OQ dùng chung (OQ-01..05 giữ chỗ + OQ-USNN-kk) | BA Team | Đang cập nhật (v1) |
+| `open-questions-v1.md` | Bảng OQ dùng chung (OQ-01..05 giữ chỗ + OQ-USNN-kk) | BA Team | Đã gộp một bảng, 25 ID (P-22) |
 | `requirements-checklist-v1.md` | 5 US, 8 PAY, 2 NFR → trạng thái/OQ | | Chưa làm |
 
 Nhóm tự điền cột Người phụ trách/Trạng thái. Năm file sys-us có thể chia cho

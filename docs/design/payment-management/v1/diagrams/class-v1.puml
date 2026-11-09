@@ -1,0 +1,273 @@
+@startuml class-v1
+title Class – Bảng thanh toán – v1
+' Phiên bản: v1 | Đầu vào: sys-us-01..05-v1.md, seq-us-01..05-v1.puml, 03-detailed-design-v1.md | Prompt: P-21
+' Mục đích: lớp miền, service, interface và quan hệ của module Bảng thanh toán
+' Phạm vi: US-PAY-01..05; PAY-01..08; NFR-PAY-01
+' Nguồn: TA-SPEC §1-6; TA-PDF tr.1-3
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam nodesep 25
+skinparam ranksep 60
+set separator none
+hide empty members
+left to right direction
+
+package "PaymentManagement.Domain" {
+  enum PaymentSheetStatus {
+    Draft
+    PendingApproval
+    Approved
+    Rejected
+    Cancelled
+  }
+
+  enum UserRole {
+    NVKD
+    KTT
+    GDKD
+  }
+
+  class BillingPeriod <<value object>> {
+    + Start : DateOnly
+    + End : DateOnly
+    + Kind : string
+  }
+  note bottom of BillingPeriod
+    Tháng hay quý, khóa duy nhất:
+    Blocked by OQ-01
+  end note
+
+  class CurrentUser <<value object>> {
+    + UserId : string
+    + Role : UserRole
+  }
+
+  class PaymentSheet {
+    - Id : Guid
+    - ContractId : int
+    - Period : BillingPeriod
+    - PriceListId : string
+    - Status : PaymentSheetStatus
+    - TotalAmount : decimal
+    - CalculatedAt : DateTimeOffset
+    - CreatedBy : string
+    - CreatedAt : DateTimeOffset
+    - SubmittedBy : string?
+    - SubmittedAt : DateTimeOffset?
+    - DecidedBy : string?
+    - DecidedAt : DateTimeOffset?
+    - RejectionReason : string?
+    - CancelReason : string?
+    - Version : int
+    + Lines : IReadOnlyList<PaymentLine>
+    + RecalculateTotal() : decimal
+  }
+  note right of PaymentSheet
+    CreatedBy dùng cho PAY-07 – "người lập": OQ-US03-01.
+    TotalAmount: thời điểm, VAT, làm tròn – OQ-US03-03.
+    CancelReason bắt buộc hay không – OQ-US05-03.
+    RejectionReason giới hạn độ dài – OQ-US03-04.
+  end note
+
+  class PaymentLine {
+    - Id : Guid
+    - ServiceCode : string
+    - Quantity : decimal
+    - UnitPrice : decimal
+    - LineAmount : decimal
+    - QuantitySourceRef : string
+    - PriceSourceRef : string
+    - CalculatedAt : DateTimeOffset
+  }
+  note bottom of PaymentLine
+    LineAmount = Quantity x UnitPrice tại thời điểm tính (PAY-03).
+    Snapshot nguồn: DD-04. Gộp/tách dòng, dữ liệu rỗng: OQ-US01-04.
+  end note
+
+  class AuditEntry {
+    - Id : Guid
+    - PaymentSheetId : Guid
+    - Action : string
+    - ActorId : string
+    - ActorRole : UserRole
+    - OccurredAt : DateTimeOffset
+    - FromStatus : PaymentSheetStatus?
+    - ToStatus : PaymentSheetStatus?
+    - Before : string
+    - After : string
+    - Reason : string?
+    - AttachmentRef : string?
+  }
+  note bottom of AuditEntry
+    Action ∈ create, update, submit, approve, reject, adjust, cancel.
+    Append-only, ghi cùng giao dịch (NFR-PAY-01, DD-03).
+  end note
+
+  class PaymentAdjustment <<Blocked by OQ-03>> {
+    - Id : Guid
+    - PaymentSheetId : Guid
+    - Content : string
+    - MinutesRef : string
+    - CreatedBy : string
+    - CreatedAt : DateTimeOffset
+  }
+  note bottom of PaymentAdjustment
+    [GIẢ ĐỊNH – Cần xác nhận] chỉ có nếu chọn phương án A
+    (hồ sơ điều chỉnh riêng). Tiêu chí biên bản: OQ-US04-01.
+  end note
+}
+
+package "PaymentManagement.Application" {
+  class PaymentController {
+    + OpenCreateForm() : IResult
+    + SelectContract(contractId : int) : IResult
+    + SelectPeriod(contractId : int, period : BillingPeriod) : IResult
+    + Preview(request : PreviewRequest) : IResult
+    + Create(request : CreateRequest) : IResult
+    + OpenDraft(id : Guid) : IResult
+    + Update(id : Guid, request : UpdateRequest) : IResult
+    + GetById(id : Guid) : IResult
+    + FindByContractPeriod(contractId : int, period : BillingPeriod) : IResult
+    + Submit(id : Guid, expectedVersion : int) : IResult
+    + Approve(id : Guid, expectedVersion : int) : IResult
+    + Reject(id : Guid, reason : string, expectedVersion : int) : IResult
+    + Adjust(id : Guid, request : AdjustRequest) : IResult
+    + Cancel(id : Guid, reason : string?, expectedVersion : int) : IResult
+  }
+
+  class PaymentService {
+    + OpenCreateForm(user : CurrentUser) : FormData
+    + SelectContract(contractId : int, user : CurrentUser) : Result
+    + SelectPeriod(contractId : int, period : BillingPeriod, user : CurrentUser) : Result
+    + Preview(selection : Selection, user : CurrentUser) : PreviewResult
+    + Create(selection : Selection, user : CurrentUser) : Result
+    + OpenDraft(id : Guid, user : CurrentUser) : Result
+    + Update(id : Guid, changes : DraftChanges, expectedVersion : int, user : CurrentUser) : Result
+    + Submit(id : Guid, expectedVersion : int, user : CurrentUser) : Result
+    + Cancel(id : Guid, reason : string?, expectedVersion : int, user : CurrentUser) : Result
+    - ValidateSubmission(sheet : PaymentSheet) : Result
+  }
+  note right of PaymentService
+    Submit: tổng < 0 bị chặn; tổng = 0 không bị chặn (PAY-04).
+    Dòng bắt buộc: OQ-05. Quyền trình: OQ-US02-01.
+    Quyền hủy: OQ-US05-01. Trường sửa Draft: OQ-US01-02.
+  end note
+
+  class PaymentApprovalService {
+    + Approve(id : Guid, expectedVersion : int, user : CurrentUser) : Result
+    + Reject(id : Guid, reason : string, expectedVersion : int, user : CurrentUser) : Result
+    - ResolveRequiredApprover(total : decimal) : UserRole
+    - IsCreator(userId : string, sheet : PaymentSheet) : bool
+  }
+  note right of PaymentApprovalService
+    ResolveRequiredApprover: đúng 500.000.000 đ – Blocked by OQ-02.
+    Reject → Rejected hay Draft – Blocked by OQ-04.
+  end note
+
+  class PaymentAdjustmentService <<Blocked by OQ-03>> {
+    + Adjust(id : Guid, content : string, minutesRef : string, expectedVersion : int, user : CurrentUser) : Result
+  }
+
+  interface IPaymentRepository {
+    + GetById(id : Guid) : PaymentSheet?
+    + FindByContractPeriod(contractId : int, period : BillingPeriod) : IReadOnlyList<PaymentSheet>
+    + FindConflict(contractId : int, period : BillingPeriod, policy : UniquenessPolicy) : bool
+    + Create(sheet : PaymentSheet) : WriteResult
+    + Update(sheet : PaymentSheet, expectedStatus : PaymentSheetStatus, expectedVersion : int) : WriteResult
+    + Transition(id : Guid, from : PaymentSheetStatus, to : PaymentSheetStatus, expectedVersion : int, reason : string?) : WriteResult
+    + UpdateApproved(sheet : PaymentSheet, minutesRef : string, expectedVersion : int) : WriteResult
+  }
+  note bottom of IPaymentRepository
+    WriteResult: OK / Conflict / Error (DD-02).
+    UpdateApproved chỉ có nếu chọn phương án B của OQ-03.
+    UniquenessPolicy: OQ-01, OQ-US05-02, OQ-D-01.
+  end note
+
+  interface IAdjustmentRepository <<Blocked by OQ-03>> {
+    + Create(adjustment : PaymentAdjustment) : WriteResult
+  }
+
+  interface IAuditLog {
+    + Append(entry : AuditEntry) : WriteResult
+  }
+
+  interface IUnitOfWork {
+    + Begin() : void
+    + Commit() : CommitOutcome
+    + Rollback() : void
+  }
+
+  interface INotifier {
+    + NotifySubmission(id : Guid, approverRole : UserRole) : SendResult
+    + NotifyResult(id : Guid, action : string) : SendResult
+  }
+  note bottom of INotifier
+    Kênh, nội dung, lỗi gửi: OQ-US02-02.
+    Có thông báo kết quả duyệt không: OQ-US03-05.
+  end note
+}
+
+package "External <<external, read-only>>" {
+  interface IContractReader {
+    + ListCandidates(user : CurrentUser) : IReadOnlyList<ContractInfo>
+    + GetContract(contractId : int) : ContractInfo?
+  }
+  interface IPriceReader {
+    + ListCandidates(contractId : int, period : BillingPeriod) : IReadOnlyList<PriceListInfo>
+    + GetPriceList(priceListId : string) : PriceListInfo?
+  }
+  interface IQuantityReader {
+    + GetQuantities(contractId : int, period : BillingPeriod) : IReadOnlyList<QuantityRecord>
+  }
+}
+
+PaymentSheet "1" *-- "0..*" PaymentLine : gồm
+PaymentSheet "1" --> "1" PaymentSheetStatus
+PaymentSheet "1" *-- "1" BillingPeriod
+PaymentSheet "1" <-- "1..*" AuditEntry : ghi lại
+PaymentSheet "1" <-- "0..*" PaymentAdjustment : điều chỉnh
+CurrentUser "1" --> "1" UserRole
+
+PaymentController ..> PaymentService
+PaymentController ..> PaymentApprovalService
+PaymentController ..> PaymentAdjustmentService
+PaymentController ..> CurrentUser
+
+PaymentService ..> IPaymentRepository
+PaymentService ..> IAuditLog
+PaymentService ..> IUnitOfWork
+PaymentService ..> INotifier
+PaymentService ..> IContractReader
+PaymentService ..> IPriceReader
+PaymentService ..> IQuantityReader
+PaymentService ..> PaymentSheet
+
+PaymentApprovalService ..> IPaymentRepository
+PaymentApprovalService ..> IAuditLog
+PaymentApprovalService ..> IUnitOfWork
+PaymentApprovalService ..> INotifier
+
+PaymentAdjustmentService ..> IPaymentRepository
+PaymentAdjustmentService ..> IAdjustmentRepository
+PaymentAdjustmentService ..> IAuditLog
+PaymentAdjustmentService ..> IUnitOfWork
+
+IPaymentRepository ..> PaymentSheet
+IAdjustmentRepository ..> PaymentAdjustment
+IAuditLog ..> AuditEntry
+
+' Bố cục: trái -> phải; liên kết ẩn chỉ để sắp xếp, không phải quan hệ UML
+IPaymentRepository -[hidden]down- PaymentSheet
+IAdjustmentRepository -[hidden]down- PaymentAdjustment
+
+legend right
+  Tên theo 03-detailed-design-v1 §1. DTO (ContractInfo, PriceListInfo,
+  QuantityRecord, Selection, Result…) và endpoint: 04-api-contract-v1.
+  <<Blocked by OQ-…>> = [GIẢ ĐỊNH – Cần xác nhận], chưa phải thiết kế cuối
+endlegend
+@enduml
+
+

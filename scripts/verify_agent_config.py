@@ -14,6 +14,9 @@ PDF_SHA256 = "bc8b34cc847343151a496c2a515a7178bf90a834d5bee909bddcf56179bd218e"
 SPEC_SHA256 = "13d2d1412f08521327738c8871294a7e03e7212f93a0a609f073d1b19b0a2b46"
 LEGACY_PATHS = (".agents", ".codex", ".claude", ".cursor", "CLAUDE.md",
                 "scripts/sync_agent_config.py")
+RULES = {"sources.md": "Nguồn yêu cầu", "common.md": "Quy tắc chung",
+         "payment-scope.md": "Phạm vi Bảng thanh toán", "handoff.md": "Bàn giao và nhật ký",
+         "ba.md": "Vai trò ba", "design.md": "Vai trò design", "reviewer.md": "Vai trò reviewer"}
 SKILLS = ("naming-versioning", "sys-spec", "uml-diagrams", "sequence-diagram",
           "data-design", "traceability-matrix")
 
@@ -97,11 +100,13 @@ def verify(codex=False):
             failures.append(label)
 
     guidance = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    for heading in ("Nguồn yêu cầu", "Quy tắc chung", "Phạm vi Bảng thanh toán",
-                    "Vai trò ba", "Vai trò design", "Vai trò reviewer",
-                    "Bàn giao và nhật ký"):
-        check(guidance.splitlines().count("## " + heading) == 1,
-              "shared guidance section: " + heading)
+    for name, heading in RULES.items():
+        path = ROOT / "rules" / name
+        check(path.is_file() and path.read_text(encoding="utf-8").startswith(
+            f"# Rule – {heading}\n"), f"rule file: rules/{name} ({heading})")
+        check(f"](rules/{name})" in guidance, f"AGENTS.md links rule: rules/{name}")
+    check(not re.search(r"(?m)^## (Quy tắc chung|Vai trò (ba|design|reviewer))$", guidance),
+          "rules live only in rules/ (not duplicated in AGENTS.md)")
     for relative in LEGACY_PATHS:
         check(not (ROOT / relative).exists(),
               "separate configuration removed: " + relative)
@@ -133,7 +138,8 @@ def verify(codex=False):
         check(path.is_file() and hashlib.sha256(data).hexdigest() == digest,
               "source preserved (SHA-256): " + relative)
 
-    setup_docs = ["AGENTS.md", "README.md", "docs/workflow/README.md",
+    setup_docs = ["AGENTS.md", "README.md", "rules/README.md",
+                  *(f"rules/{name}" for name in RULES), "docs/workflow/README.md",
                   "docs/workflow/prompt-log.md",
                   "docs/requirements/payment-management/spec.md",
                   "docs/requirements/payment-management/sources.md",
@@ -142,6 +148,9 @@ def verify(codex=False):
                   "docs/review/payment-management/README.md"] + skill_docs
     for relative in setup_docs:
         path = ROOT / relative
+        if not path.is_file():
+            check(False, "local links: " + relative + " (file missing)")
+            continue
         content = path.read_text(encoding="utf-8")
         missing = []
         for target in re.findall(r"\]\(([^)]+)\)", content):

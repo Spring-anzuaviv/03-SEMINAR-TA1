@@ -1,7 +1,7 @@
 # Ngữ cảnh dùng chung cho các skill – Bảng thanh toán TA 1–2
 
 Tài liệu tham chiếu cho mọi skill trong [skills/](../README.md). Không thay
-[AGENTS.md](../../AGENTS.md); khi có khác biệt, AGENTS.md và TA-SPEC thắng.
+[AGENTS.md](../../AGENTS.md) và [rules/](../../rules/README.md); khi có khác biệt, rules và TA-SPEC thắng.
 Tên file, version và mã ID theo skill [naming-versioning](../naming-versioning/SKILL.md).
 Mọi dữ kiện dưới đây phải được kiểm tra lại trên file thực trước khi dùng.
 
@@ -59,7 +59,7 @@ phải mã trong đề; ghi rõ điều đó lần đầu xuất hiện trong m�
 
 ## 4. Mâu thuẫn/thiếu đã biết – ID giữ chỗ, không tự chọn phía
 
-Năm vấn đề dưới đây đã được AGENTS.md nêu; ID giữ chỗ để các thành viên viết
+Năm vấn đề dưới đây đã được [rules/payment-scope.md](../../rules/payment-scope.md) nêu; ID giữ chỗ để các thành viên viết
 sys-us song song dùng chung một mã. BA ghi đủ cột theo mẫu OQ vào
 `open-questions-vK.md`. Giữ chỗ ID **không** phải câu trả lời nghiệp vụ.
 

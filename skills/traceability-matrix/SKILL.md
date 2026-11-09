@@ -5,7 +5,7 @@ description: Lập 06-traceability-matrix-vK.md nối từng US/PAY/NFR/AC và n
 
 # Skill: traceability-matrix – Ma trận truy vết
 
-Vai trò: **design** trong [AGENTS.md](../../AGENTS.md) (bước 7). Đọc AGENTS.md và
+Vai trò: **design** – [rules/design.md](../../rules/design.md), điểm vào [AGENTS.md](../../AGENTS.md) (bước 7). Đọc AGENTS.md và
 [ngữ cảnh dùng chung](../_shared/payment-context.md) và
 [naming-versioning](../naming-versioning/SKILL.md). Chạy **sau cùng** (bước 10),
 khi các file thiết kế khác cùng version đã có.

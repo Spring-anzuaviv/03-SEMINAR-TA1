@@ -1,0 +1,93 @@
+@startuml erd-v1
+title ERD (mô hình dữ liệu) – Bảng thanh toán – v1
+' Phiên bản: v1 | Đầu vào: class-v1.puml, 04-api-contract-v1.md, 05-data-design-v1.md | Prompt: P-22
+' Mục đích: bảng, cột chính, khóa và quan hệ. Đây là ERD, không phải UML class diagram.
+' Phạm vi: US-PAY-01..05; PAY-01, 03; NFR-PAY-01
+' Nguồn: TA-SPEC §1-6; TA-PDF tr.1-3
+' Trạng thái: Bản lần chạy đầu – Design Pending Approval
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+hide circle
+skinparam linetype ortho
+
+entity "payment_sheets" as S {
+  * id : UUID <<PK>>
+  --
+  * contract_id : INT <<ref Hợp đồng>>
+  * period_kind : VARCHAR(10)
+  * period_start : DATE
+  * period_end : DATE
+  * price_list_id : VARCHAR(50) <<ref Bảng giá>>
+  * status : VARCHAR(20) <<CHECK 5 giá trị §3>>
+  * total_amount : DECIMAL(19,4)
+  * calculated_at : TIMESTAMPTZ
+  * created_by : VARCHAR(50)
+  * created_at : TIMESTAMPTZ
+  submitted_by : VARCHAR(50)
+  submitted_at : TIMESTAMPTZ
+  decided_by : VARCHAR(50)
+  decided_at : TIMESTAMPTZ
+  rejection_reason : TEXT
+  cancel_reason : TEXT
+  * version : INT
+}
+
+entity "payment_lines" as L {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  * line_no : INT
+  * service_code : VARCHAR(50)
+  * quantity : DECIMAL(19,4)
+  * unit_price : DECIMAL(19,4)
+  * line_amount : DECIMAL(19,4)
+  * quantity_source_ref : VARCHAR(100)
+  * price_source_ref : VARCHAR(100)
+  * calculated_at : TIMESTAMPTZ
+}
+
+entity "audit_entries" as A {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  * action : VARCHAR(20)
+  * actor_id : VARCHAR(50)
+  * actor_role : VARCHAR(10)
+  * occurred_at : TIMESTAMPTZ
+  from_status : VARCHAR(20)
+  to_status : VARCHAR(20)
+  before_json : JSON
+  * after_json : JSON
+  reason : TEXT
+  attachment_ref : VARCHAR(100)
+}
+
+entity "payment_adjustments\n<<Blocked by OQ-03 – chỉ phương án A>>" as J #FFF4DB {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  * content : TEXT
+  * minutes_ref : VARCHAR(100)
+  * created_by : VARCHAR(50)
+  * created_at : TIMESTAMPTZ
+}
+
+S ||--o{ L : gồm
+S ||--|{ A : ghi lại
+S ||--o{ J : điều chỉnh
+
+note right of S
+  Khóa duy nhất theo kỳ (PAY-01) chưa chốt:
+  OQ-01, OQ-US05-02, OQ-D-01 – xem 05 §8.
+  Làm tròn/VAT của total_amount: OQ-US03-03.
+end note
+
+note bottom of A
+  Append-only; ghi cùng giao dịch (NFR-PAY-01, DD-03).
+end note
+
+legend right
+  * = NOT NULL. contract_id, price_list_id: tham chiếu logic sang module khác, không FK chéo module.
+  Nền vàng = [GIẢ ĐỊNH – Cần xác nhận], chưa phải thiết kế cuối.
+endlegend
+@enduml
