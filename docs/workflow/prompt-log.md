@@ -706,3 +706,34 @@ Prompt nguyên văn:
 Prompt nguyên văn:
 
     bạn sửa 5 file seq này cho đồng bộ giống tên chuẩn ở 03-detailed-design-v1.md đi
+
+### P-25 – Review độc lập toàn bộ bản v1 (ai-review-01-v1)
+
+| Trường                    | Giá trị |
+| ------------------------- | ------- |
+| Ngày / người chạy         | 09/11/2026 / Nguyễn Ngọc Mai Xuân (phiên Claude Code được một phiên khác khởi tạo) |
+| Công cụ / model           | Claude Code (desktop) / Claude Opus 5.5 (`claude-opus-5-5`); PlantUML 1.2024.3 (jar của extension VS Code `jebbs.plantuml-2.18.1`), Java 21; `pdftotext` (poppler, MinGW); Python 3.11 |
+| Vai trò / skill / version | reviewer / – (naming-versioning để đặt tên) / v1 |
+| Nguồn đã đưa vào          | AGENTS.md; rules/sources.md, common.md, payment-scope.md, handoff.md, reviewer.md; skills/naming-versioning, skills/_shared/payment-context.md; TA-SPEC §1–6; TA-PDF tr.1–3 (`pdftotext -layout`); analysis/v1: sys-us-01..05-v1.md, open-questions-v1.md; design/v1: 01–05, 07 (toàn bộ), 06 (§1–2, §4–8 toàn bộ, §3 theo cột ID/API/kiểm chứng/trạng thái/OQ); diagrams/v1: 9 file `.puml` + SVG; src/Qtkd.Api/ (kiểm tra khẳng định AS-IS); prompt-log P-13, P-15..P-24; `git log` của docs/review và design/v1 |
+| File đầu ra               | `docs/review/payment-management/ai-review-01-v1.md` (mới; tạo thư mục `docs/review/payment-management/`): 28 nhận xét R01-01..R01-28 (3 Cao, 7 TB, 18 Thấp), bảng bao phủ, 8 vấn đề đặc tả OQ còn bỏ sót (S-01..S-08), kết luận **Cần chỉnh sửa**. Từ báo cáo này v1 bị đóng băng |
+| Kiểm chứng                | `java -jar plantuml.jar -charset UTF-8 -checkonly v1/diagrams/*.puml` → exit 0; `-tsvg -o <scratchpad>` → exit 0, 9 SVG; so md5 phần text SVG trong repo với bản render lại → 9/9 giống. `python -X utf8 scripts/verify_agent_config.py` (chạy trước khi tạo báo cáo) → FAIL 5 checks (thiếu `docs/review/payment-management` + README, link `v2/03-detailed-design-v2.md`, 2 tên file trong `analysis/v2/`); chạy lại sau khi tạo báo cáo → FAIL 4 checks (hết lỗi thiếu thư mục review; còn thiếu README review, link v2/03, 2 tên file v2; tên `ai-review-01-v1.md` qua kiểm tra naming). Không có code/test module, không đo hiệu năng |
+| Phần AI viết / nhóm sửa   | AI viết toàn bộ báo cáo; nhóm chưa đánh giá (Đúng/Sai/Thừa ghi ở `review-assessment-01-v1.md`). Không sửa file thiết kế, phân tích, đặc tả, rules, skill hay script; không đóng OQ, không chọn phía mâu thuẫn |
+| Ghi chú                   | `docs/review/` không còn khi bắt đầu; lịch sử Git có `ai-review-03-v1.md`, `ai-review-04-v2.md`, `ai-review-us-05-v1.md` bị xóa ở commit `b7da5fa`; tên `ai-review-01-v1.md` theo nhiệm vụ, chưa từng tồn tại nên không ghi đè. Chưa commit |
+
+Prompt nguyên văn (nhiệm vụ do phiên khởi tạo gửi):
+
+    Background (from the session that started this one):
+    Đề bài TA 1–2: thiết kế module Bảng thanh toán bằng AI agent; mục 2 của đề yêu cầu nhóm đánh giá nhận xét của AI Reviewer là Đúng/Sai/Thừa. Bản v1 (bản lần chạy đầu) vừa hoàn thiện: 5 sys-us có AC (US-03/04 có AC do AI bổ sung, nhóm chưa duyệt), 25 OQ trong `open-questions-v1.md` + OQ-D-01 trong `01-requirements-summary-v1.md`, đủ 01–07, 5 seq (đã đồng bộ tên theo danh mục ở `03 §1`), class/state/component/ERD. Báo cáo review này sẽ được 6 thành viên chấm từng nhận xét `R01-kk`, nên mỗi nhận xét cần vị trí và căn cứ đủ rõ để kiểm tra lại. Sau khi có `ai-review-01-v1.md`, v1 bị đóng băng; sửa đổi đưa vào v2. Reviewer phải độc lập: không dựa vào lời giải thích của người thiết kế, chỉ dựa vào file thực và đặc tả.
+
+    Task:
+    Đọc `AGENTS.md` và các rule `rules/sources.md`, `rules/common.md`, `rules/payment-scope.md`, `rules/handoff.md`, `rules/reviewer.md`. Đóng vai agent **reviewer**.
+
+    Review độc lập toàn bộ bản **v1** của module Bảng thanh toán, đối chiếu với đặc tả TA (`docs/requirements/payment-management/spec.md`, PDF `assignment-ta-1-2.pdf`):
+    - Phân tích: `docs/analysis/payment-management/v1/` (`sys-us-01..05-v1.md`, `open-questions-v1.md`).
+    - Thiết kế: `docs/design/payment-management/v1/` (`01`–`07`, `diagrams/seq-us-01..05-v1.puml`, `class-v1.puml`, `state-machine-v1.puml`, `component-v1.puml`, `erd-v1.puml`).
+
+    Kiểm tra theo `rules/reviewer.md`: bao phủ US-PAY-01..05, PAY-01..08, 2 NFR và mọi AC; mâu thuẫn/mơ hồ/thiếu trong đặc tả bị bỏ sót (đúng 500 triệu, điều chỉnh Approved, Rejected/Draft, tháng/quý, dòng bắt buộc và vấn đề khác); suy diễn hoặc tự chốt nghiệp vụ; nhất quán giữa sys-us ↔ seq ↔ class ↔ state ↔ API ↔ dữ liệu ↔ ma trận truy vết; audit mọi chuyển trạng thái/điều chỉnh; chống trình trùng; cấm tự duyệt; ranh giới module và interface chỉ đọc; bằng chứng render/test.
+
+    Đầu ra: **một file mới** `docs/review/payment-management/ai-review-01-v1.md` (tạo thư mục nếu chưa có). Mỗi nhận xét có mã `R01-kk`, vị trí file/mục, loại, mức độ, nhận xét và tác động, đề xuất/cách kiểm chứng, căn cứ TA-SPEC §/trang, OQ liên quan — theo bảng mẫu trong `rules/reviewer.md`. Thêm một mục riêng liệt kê **vấn đề đặc tả mà OQ hiện có còn bỏ sót**. Nêu nguồn/bản đã đọc, phần chưa kiểm được, bảng bao phủ và kết luận (Chưa đủ đầu vào / Cần chỉnh sửa / Chờ xác nhận nghiệp vụ / Đủ điều kiện trình người phụ trách).
+
+    Không sửa bất kỳ file nào khác (thiết kế, phân tích, đặc tả, rules, skill, script); không tự đánh giá nhận xét của mình là Đúng/Sai/Thừa; không tự chọn phía của mâu thuẫn. Cuối cùng ghi một mục mới `P-kk` (số tiếp theo) vào `docs/workflow/prompt-log.md` với prompt thực tế, công cụ/model, file đã đọc và kết quả. Xong khi file báo cáo tồn tại và có đủ các phần trên.
