@@ -3,6 +3,7 @@
 > Phiên bản được review: **v1** (bản lần chạy đầu) · Ngày: 09/11/2026
 > Vai trò: reviewer ([rules/reviewer.md](../../../rules/reviewer.md)) · AI: Claude Opus 5.5 (Claude Code, desktop) · Prompt: P-25 trong [prompt-log](../../workflow/prompt-log.md)
 > Trạng thái: Báo cáo review AI – **chưa được nhóm đánh giá**. Nhóm ghi Đúng/Sai/Thừa trong `review-assessment-01-v1.md`; reviewer không tự đánh giá nhận xét của mình.
+> Cập nhật 10/11/2026: người dùng đã đánh giá 10 nhận xét liên quan US-01 tại §8; các nhận xét còn lại chưa được đánh giá. Giữ nguyên nội dung review gốc bên dưới.
 > Theo [naming-versioning](../../../skills/naming-versioning/SKILL.md), từ khi có file này, v1 bị đóng băng; mọi sửa đổi đưa vào v2.
 
 Reviewer chỉ đọc file thực và đặc tả, không dùng lời giải thích của người thiết kế. Mọi nhận xét
@@ -177,3 +178,24 @@ Reviewer chỉ nêu câu hỏi, không chọn đáp án.
 - v1 đóng băng kể từ báo cáo này; design chỉ sửa trong `v2/` theo các nhận xét được chấp nhận.
 - File này là đầu ra duy nhất của lần review (cùng mục P-25 trong prompt-log). Không file thiết kế,
   phân tích, đặc tả, rules, skill hay script nào bị sửa.
+
+## 8. Đánh giá của người dùng đối với các nhận xét liên quan US-01
+
+Ngày đánh giá: **10/11/2026**. Người đánh giá: người dùng trong chat, chưa cung cấp họ tên. Nguồn: câu trả lời trực tiếp được lưu nguyên văn tại P-28 trong [nhật ký](../../workflow/prompt-log.md). AI chỉ ghi lại đánh giá; đây không phải reviewer tự chấm nhận xét của mình. Phần review gốc và kết luận tại §1–7 giữ nguyên làm lịch sử.
+
+| ID nhận xét | Đánh giá của người dùng | Ý kiến/lý do do người dùng cung cấp | Cách ghi nhận và phạm vi xử lý |
+|---|---|---|---|
+| R01-02 | Đúng | Bổ sung câu hỏi về thuế vào OQ. | Tái sử dụng OQ-US03-03, bổ sung câu hỏi thuế cho dòng/tổng US-01; chưa xác nhận công thức, thuế suất hoặc cách làm tròn. |
+| R01-03 | Đúng | Đây là nghiệp vụ ban đầu, v2 là người dùng validate sâu hơn. | Ghi đúng cách người dùng xác định nghiệp vụ; v2 là phần kiểm tra/làm rõ sâu hơn, không mặc định mọi nội dung đó là nghiệp vụ mới. Không tự diễn giải thêm thành quyền chọn giá thủ công. |
+| R01-15 | Sai | Người dùng đánh giá Sai; chưa cung cấp lý do chi tiết. | Không thực hiện đề xuất thay cấu trúc dữ liệu hoặc mở thêm OQ chỉ từ nhận xét này. Những câu hỏi sinh dòng đã có của OQ-US01-04 vẫn giữ phần chưa được trả lời. |
+| R01-17 | Thừa | Người dùng đánh giá Thừa; chưa cung cấp lý do chi tiết. | Không bổ sung yêu cầu/OQ hoặc thay ma trận truy vết chỉ vì nhận xét này. |
+| R01-27 | Đúng | Người dùng đánh giá Đúng. | Giữ OQ-US01-06 về điểm đo/cách đếm dòng/môi trường; chưa có câu trả lời về phép đo hoặc bằng chứng đạt ≤3 giây với <200 dòng. |
+| R01-05 | Đúng | Người dùng đánh giá Đúng. | Giữ OQ-04/OQ-US03-07; việc chấp nhận nhận xét chưa trả lời Rejected hay Draft, ai chuyển và khi nào. Chỉ liên quan nhánh mở sửa bảng bị từ chối của US-01. |
+| R01-08 | Đúng | Có kiểm tra lại. | Ghi nhận xác nhận kiểm tra lại điều kiện nguồn sau lưu Draft tại điểm giao với trình/duyệt. OQ-US01-07 lưu câu trả lời và phần còn mở về xử lý khi kiểm tra không đạt; không triển khai/sửa US-02/03 trong lượt này. |
+| R01-09 | Thừa | Người dùng đánh giá Thừa. | Không mở câu hỏi mới từ S-02 về mở rộng nghĩa trình trùng; không thêm kiểm tra trùng nội dung. Không thay đổi PAY-01 hoặc PAY-04 gốc. |
+| R01-22 | Thừa | Bảng sản lượng và bảng giá đã không âm; hệ thống chỉ tự động lấy và map qua bảng thanh toán. | Ghi nhận dữ liệu nguồn q/p không âm, US-01 chỉ đọc/ánh xạ. Không mở câu hỏi nguồn giá trị âm hoặc thiết kế nhập tay/dòng giảm trừ từ nhận xét này; không bỏ validation trình duyệt theo PAY-04. |
+| R01-24 | Thừa | Người dùng đánh giá Thừa. | Không mở thêm câu hỏi quyền xem/thời hạn lưu audit từ nhận xét này. Vẫn giữ yêu cầu ghi audit ai/lúc nào/thay đổi gì của TA-SPEC §6. |
+
+Tổng hợp riêng 10 nhận xét trên: **5 Đúng, 1 Sai, 4 Thừa**. Đây là đánh giá nhận xét reviewer, không phải thống kê số lỗi đã sửa, không xác nhận toàn bộ thiết kế đã được duyệt. Không suy ra kết quả cho 18 nhận xét còn lại trong báo cáo.
+
+Theo chỉ định của người dùng trong lượt này, phần OQ US-01 được bổ sung có ngày/tham chiếu trong [open-questions-v1.md](../../analysis/payment-management/v1/open-questions-v1.md). Không sửa TA-SPEC, SYS/sequence/class/state/API v1 hoặc nội dung OQ riêng của US khác.

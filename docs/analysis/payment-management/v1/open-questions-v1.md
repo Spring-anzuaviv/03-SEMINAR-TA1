@@ -67,3 +67,32 @@ Giả sử bảng đã duyệt ghi **120 triệu** và biên bản xác nhận s
 | `01` (bộ cũ)              | OQ-03                 |
 | `02` (bộ cũ)              | OQ-US04-01            |
 | `03` (bộ cũ)              | OQ-US04-02            |
+
+## Bổ sung theo đánh giá người dùng ngày 10/11/2026 — chỉ phần US-PAY-01
+
+Người dùng yêu cầu bổ sung trực tiếp vào file v1 này. Các phần phía trên giữ lịch sử ở thời điểm lập/review v1; phần dưới ghi riêng ngày và nguồn xác nhận sau review, không sửa hồi tố TA-SPEC hoặc thay đổi SYS/thiết kế v1. Nguồn: [ai-review-01-v1.md §8](../../../review/payment-management/ai-review-01-v1.md#8-đánh-giá-của-người-dùng-đối-với-các-nhận-xét-liên-quan-us-01) và P-28 trong [nhật ký](../../../workflow/prompt-log.md). Người trả lời: người dùng trong chat, chưa cung cấp họ tên.
+
+### Câu hỏi thuế — bổ sung chi tiết cho OQ-US03-03
+
+R01-02 được người dùng đánh giá **Đúng**, yêu cầu đưa câu hỏi thuế vào OQ. Tái sử dụng ID OQ-US03-03 đã có, không tạo câu hỏi trùng. Phần bổ sung này chỉ xác định đầu vào tính dòng/tổng khi lập hoặc sửa Draft của US-01:
+
+- Bảng thanh toán có áp dụng thuế không? Tổng hiển thị/lưu là trước thuế hay đã gồm thuế?
+- Nếu có thuế, dùng loại/thuế suất hay khoản thuế cố định nào; nguồn và mốc hiệu lực nào được áp dụng?
+- Thuế tính theo từng dòng dịch vụ hay tổng bảng; thứ tự tính và cách thể hiện tiền thuế/tổng sau thuế ra sao?
+- Độ chính xác, làm tròn dòng, tiền thuế và tổng như thế nào để dữ liệu hiển thị, lưu và audit nhất quán?
+
+Vị trí nguồn: TA-SPEC §4.1, §5 PAY-03; quy trình [sys-us-01-v1.md](sys-us-01-v1.md) §1.3 bước 10/14, §1.5 U4/AU4; AC-US01-11/12/17. Đề gốc chưa nêu thuế hoặc cách làm tròn. Ảnh hưởng: chưa chốt công thức tiền cuối cho US-01; tiếp tục phần phép nhân có căn cứ và các bước độc lập. **Trạng thái: Cần xác nhận với khách hàng.** Câu trả lời ngày 10/11 chỉ chấp nhận việc hỏi thêm, chưa trả lời các câu trên; không tự áp VAT/thuế suất/làm tròn.
+
+### Kiểm tra lại nguồn sau khi Draft đã lưu — điểm giao của US-01
+
+| ID | Vị trí mọi nguồn | Loại Mâu thuẫn/Mơ hồ/Thiếu | Mô tả | Lý do cần xác nhận | Lựa chọn | Ảnh hưởng | Trạng thái | Người/ngày/câu trả lời và tham chiếu |
+|---|---|---|---|---|---|---|---|---|
+| OQ-US01-07 | TA-SPEC §4.1–4.3; PAY-01..03; R01-08/S-01.<br>Vị trí US-01: [sys-us-01-v1.md](sys-us-01-v1.md) §1.3 bước 16, §1.5 U6: bảng Draft đã lưu bàn giao cho trình/duyệt; khác kiểm tra trước lưu tại bước 14. | Thiếu | Sau lưu Draft, hợp đồng hết Active, giá hoặc sản lượng/đối soát đổi thì có kiểm tra lại các điều kiện nguồn tại điểm giao với trình/duyệt không? Nếu kiểm tra không đạt hoặc dữ liệu thay đổi thì phản hồi và xử lý bảng thế nào? | Cần phân biệt dữ liệu đã lưu với nguồn hiện tại, tránh tự chọn giữ cũ/tính lại/chặn thao tác khi chưa có quyết định. | Có kiểm tra lại đã được xác nhận. Cần người dùng/khách hàng xác nhận cách xử lý từng điều kiện không đạt; không tự chọn phương án. | US-01 bàn giao Draft và thông tin nguồn đã dùng; chính sách áp dụng sau bàn giao cần đồng bộ với người phụ trách US-02/03. Lượt này không sửa thiết kế hoặc OQ riêng của các US đó. | Đã xác nhận có kiểm tra lại; còn cần xác nhận xử lý khi không đạt/thay đổi | Người dùng / 10/11/2026 / “R01-08: đúng. có kiểm tra lại”; review 01 §8, P-28. |
+
+### Xác nhận và giới hạn bổ sung OQ US-01
+
+- **OQ-US01-01 / R01-03:** người dùng đánh giá Đúng và xác định “đây là nghiệp vụ ban đầu, v2 là tôi validate sâu hơn”. Ghi nhận cách xác định này; không tự suy rằng v1 được phép cho chọn giá trái những xác nhận về giá Active đã có. Phần đồng bộ nguồn chưa trả lời tiếp tục để mở.
+- **OQ-US01-06 / R01-27:** người dùng đánh giá Đúng; câu hỏi điểm đo/cách đếm dòng/môi trường tiếp tục cần xác nhận. Giữ ≤3 giây, <200 dòng; không ghi đã đo hoặc đã đạt.
+- **OQ-04/OQ-US03-07 / R01-05:** người dùng đánh giá Đúng; chỉ ghi nhận ảnh hưởng mở sửa sau từ chối của US-01. Chưa có câu trả lời về trạng thái đích/người/thời điểm chuyển nên không đóng OQ hoặc tự thêm transition.
+- **OQ-US01-04 / R01-22:** xác nhận ngày 10/11: bảng sản lượng và bảng giá cung cấp dữ liệu không âm; US-01 chỉ tự động lấy và ánh xạ q/p, không nhập thủ công. Không bổ sung câu hỏi nguồn giá trị âm theo S-04. Cách gộp/tách, rỗng/0, đối soát một phần và nguồn sản lượng đổi vẫn chưa được trả lời; không dùng xác nhận không âm để đóng các phần này.
+- **R01-15 = Sai; R01-17/09/24 = Thừa:** không tạo OQ hoặc yêu cầu mới từ các nhận xét này, không ép đổi cấu trúc dữ liệu, ma trận truy vết, dò trùng nội dung hoặc quyền xem/thời hạn lưu audit. Những OQ tồn tại độc lập vẫn giữ phần còn mở. Giữ nguyên PAY-01, PAY-04 và yêu cầu audit §6 của TA-SPEC.
