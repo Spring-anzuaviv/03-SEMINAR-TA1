@@ -2,9 +2,12 @@
 
 > Ngày: 08/11/2026 · Bản đối chiếu: v1 và v2
 > AI: Codex / GPT-6 · Prompt: P-20 trong [nhật ký](../../../workflow/prompt-log.md)
+> Bổ sung ngày 09/11/2026: review class/state/API theo R05-01..09 · Prompt: P-27.
 > Phạm vi: yêu cầu, quy tắc nghiệp vụ, dữ liệu, phân quyền và xử lý lỗi của US-PAY-01.
 
 Báo cáo tổng hợp các vấn đề ảnh hưởng đến phát triển chức năng, phân tích và hướng xử lý từ các lượt review/câu trả lời của người dùng. Cột đánh giá là phần AI tự đối chiếu theo yêu cầu người dùng; chưa thay thế việc nhóm đánh giá, xác nhận hoặc phê duyệt nghiệp vụ.
+
+Phần tự đánh giá đã có được giữ tại mục 1–2. Mục 3 bổ sung nhận xét từ review 05 và để chờ người dùng nhận xét; hướng xử lý tại đó là đề xuất của AI, chưa được ghi thành quyết định của người dùng.
 
 Cột **Đánh giá AI** nhận xét bản phân tích/thiết kế trước khi điều chỉnh:
 
@@ -21,7 +24,8 @@ Nguồn đối chiếu:
 - [Đặc tả v1](../v1/sys-us-01-v1.md) và [đặc tả v2](sys-us-01-v2.md).
 - [OQ v2](open-questions-v2.md), [sequence v2](../../../design/payment-management/v2/diagrams/seq-us-01-v2.puml).
 - Các xác nhận của người dùng tại P-18/P-19 trong [nhật ký](../../../workflow/prompt-log.md).
-- [Review v2](../../../review/payment-management/ai-review-04-v2.md) cho các thiếu sót kỹ thuật cuối báo cáo.
+- `ai-review-04-v2.md`: nguồn lịch sử của hai thiếu sót tại mục 2, hiện không có trong workspace; lượt bổ sung này giữ nội dung đã tổng hợp, chưa đối chiếu lại được báo cáo nguồn.
+- [Review 05 – class, state và API](../../../review/payment-management/ai-review-05-v1.md): nguồn bổ sung tại mục 3.
 
 Vị trí V2 trong bảng là nơi xử lý hoặc tiếp tục ghi nhận vấn đề trong sys-us-01-v2.md.
 
@@ -60,3 +64,21 @@ Hai vấn đề dưới đây được phát hiện trong review v2, chưa có q
 | Xác minh đã lưu nhưng chưa mô tả đủ dữ liệu trả về | V2 K1, bước 13/U6; R04-03 | Thiếu luồng dữ liệu | Khi xác minh committed, phải trả id, dữ liệu và version đã lưu, hoặc đọc lại bảng đã xác minh trước khi hiển thị. | **Thiếu** — chỉ trả trạng thái kết quả chưa đủ để hoàn thành phục hồi trên UI. |
 
 Kiểm tra cú pháp hoặc kết xuất PlantUML thành công không chứng minh hai vấn đề kỹ thuật này đã được giải quyết. Báo cáo không kết luận ứng dụng đã được triển khai, kiểm thử tích hợp hoặc đạt hiệu năng.
+
+## 3. Bổ sung từ review class, state diagram và API liên quan US-01
+
+Nguồn: [ai-review-05-v1.md](../../../review/payment-management/ai-review-05-v1.md), §4. Giữ ID để người dùng có thể nhận xét từng vấn đề. Ba nhận xét đầu thuộc chính thiết kế v1; sáu nhận xét sau là phần chưa có thiết kế class/state/API v2 tương ứng với yêu cầu mới, không phải kết luận v1 đã sai vì chưa biết thay đổi về sau.
+
+| Vấn đề phát hiện | Vị trí, căn cứ | Loại vấn đề | Hướng xử lý AI đề xuất; tình trạng ý kiến người dùng | Đánh giá của người dùng |
+|---|---|---|---|---|
+| R05-01 — Chưa đủ căn cứ xác minh kết quả tạo khi mất phản hồi | API v1 E5/E7; class v1 FindByContractPeriod; SYS v1 A15.2; TA-SPEC §4.1, PAY-01, §6 | Thiếu hợp đồng xử lý kết quả lưu; Cao | Gắn lần tạo với định danh có thể tra cứu; phân biệt đã lưu/chắc chắn chưa lưu/còn chưa rõ. Danh sách theo hợp đồng/kỳ chưa đủ nhận diện đúng lần tạo; đọc thấy rỗng chưa chứng minh giao dịch cũ đã kết thúc. Đây là đề xuất kỹ thuật, chưa có ý kiến mới của người dùng. | Chờ bạn nhận xét |
+| R05-02 — Chưa có cách xác minh riêng kết quả sửa Draft | API v1 E8/E7/E6; sequence v1 U5/AU5.1; TA-SPEC §4.1, §6 | Thiếu luồng phục hồi cập nhật; TB | Xác minh đúng lần update, gắn bảng, version đầu vào và kết quả thao tác. Không chỉ dựa vào version hiện tại vì có thể đã có lần sửa khác. Liên quan mục 2 về dữ liệu trả sau K1, nhưng đây là khoảng trống của contract API v1. Chưa có ý kiến mới của người dùng. | Chờ bạn nhận xét |
+| R05-03 — Chữ ký mở giao dịch chưa thống nhất với sequence | Class v1 IUnitOfWork.Begin dòng 199; sequence v1 dòng 235–239, 325–329 | Không nhất quán contract kỹ thuật; Thấp | Class dùng Begin(): void trong khi sequence nhận beginResult để rẽ lỗi/thành công. Chọn trả kết quả hoặc mô tả bắt/chuyển exception tại service; không mặc định cách dùng exception là sai. Chưa có ý kiến mới của người dùng. | Chờ bạn nhận xét |
+| R05-04 — Class/API chưa theo ngữ cảnh chi tiết hợp đồng | Class v1 OpenCreateForm/SelectContract; API v1 E1–E3 ↔ SYS v2 bước 1–4, AC-US01-21; P-18.1 | Chưa chuyển yêu cầu vào thiết kế v2; TB | Người dùng đã xác nhận lập từ chi tiết hợp đồng, không chọn lại. Cần class/API v2 mở form với hợp đồng đang xem và kiểm tra quyền phía server. Bổ sung mức thiết kế cho vấn đề điểm bắt đầu ở mục 1; chưa coi thiết kế đã hoàn thành. | Chờ bạn nhận xét |
+| R05-05 — Thiếu contract lấy giá Active, bằng chứng nguồn và phản hồi tính lại | Class v1 IPriceReader; API v1 E3–E5; state v1 T1 ↔ SYS v2 bước 7/11, A7.3/A11.1, AC-US01-09/26/34; PAY-01/03 | Chưa chuyển quy tắc giá vào class/state/API v2; TB | Người dùng đã chốt tự lấy Active gắn hợp đồng, giá đổi trước lưu thì dùng Active, bảng giá được tạo khi hợp đồng còn hiệu lực. Reader/DTO cần dữ liệu kiểm chứng và phản hồi preview mới khi tính lại; không cho giữ giá cũ. Thuế/làm tròn và đồng bộ nền vẫn theo OQ. Chưa có đánh giá của người dùng về nhận xét review này. | Chờ bạn nhận xét |
+| R05-06 — Chưa chốt thiết kế ngăn tháng/quý chồng lấn | Class v1 BillingPeriod/FindConflict; state v1 T1; API v1 E3/E5; thiết kế dữ liệu v1 §8 ↔ SYS v2 §1.5, AC-US01-14/30 | Thiếu thiết kế ràng buộc theo quyết định v2; TB | Người dùng đã xác nhận không chồng lấn. Unique theo cùng start/end chỉ chặn khoảng giống nhau, chưa tự chặn tháng 1 với quý I. Cần cơ chế kiểm tra/bảo vệ nguyên tử và phản hồi lỗi trường kỳ, kiểm chứng cả đồng thời. Không tự chốt cách đổi kỳ Draft hoặc chính sách Cancelled từ lượt này. | Chờ bạn nhận xét |
+| R05-07 — Ghi chú chưa có đường đi tới lưu trữ và đọc lại | Class v1 PaymentSheet; API v1 PaymentSheetDto/E4/E5 ↔ SYS v2 bước 5/12, AC-US01-27; P-18.2 | Thiếu ánh xạ dữ liệu cho yêu cầu bổ sung; TB | Người dùng đã yêu cầu ghi chú tùy chọn. Cần field tương ứng trong model/request/response/lưu trữ v2; để trống vẫn hợp lệ, không tự đặt giới hạn ký tự. Bổ sung chi tiết thiết kế cho vấn đề ghi chú ở mục 1. | Chờ bạn nhận xét |
+| R05-08 — Chưa tách trường nguồn đã khóa khỏi phần changes còn mở | API v1 E8; class v1 PaymentService.Update/PaymentLine ↔ SYS v2 A11.2/AU4.2, AC-US01-32/33; TA-SPEC §1/PAY-03; P-19 | Chưa chuyển phần yêu cầu đã rõ vào contract v2; TB | Người dùng đã khóa sản lượng, đơn giá, hợp đồng, khách hàng và kết quả tính; cần contract từ chối request nhập đè. Các trường khác vẫn OQ-US01-02, không tự cho đổi kỳ. Hệ thống cập nhật đơn giá từ Active không phải sửa tay. Chưa có đánh giá mới về nhận xét review này. | Chờ bạn nhận xét |
+| R05-09 — Chưa có contract cho đề xuất quyền theo một người thực hiện | Class v1 IContractReader; API v1 §1/E5/E8 ↔ SYS v2 P1/P4, A6.1, AC-US01-03/31; OQ-US01-03; P-19 | Thiếu thiết kế chi tiết cho phương án quyền; TB | Người dùng yêu cầu ghi rõ đây là đề xuất: chỉ lập hợp đồng được giao, chỉ sửa Draft do mình tạo. Cần chỉ ra dữ liệu kiểm tra quyền và phản hồi khi quyền bị thu hồi; không coi vai trò NVKD là đủ và không tuyên bố khách hàng đã phê duyệt. | Chờ bạn nhận xét |
+
+Mục 3 có 9 nhận xét: 1 Cao, 7 TB, 1 Thấp theo review 05. Các hàng R05-04..09 nối tiếp vấn đề nghiệp vụ tại mục 1 ở mức thiết kế, không được cộng thành sáu vấn đề nghiệp vụ mới độc lập. Chưa sửa class/state/API hay đánh dấu các nhận xét là đã xử lý.

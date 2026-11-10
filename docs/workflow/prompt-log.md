@@ -737,3 +737,60 @@ Prompt nguyên văn (nhiệm vụ do phiên khởi tạo gửi):
     Đầu ra: **một file mới** `docs/review/payment-management/ai-review-01-v1.md` (tạo thư mục nếu chưa có). Mỗi nhận xét có mã `R01-kk`, vị trí file/mục, loại, mức độ, nhận xét và tác động, đề xuất/cách kiểm chứng, căn cứ TA-SPEC §/trang, OQ liên quan — theo bảng mẫu trong `rules/reviewer.md`. Thêm một mục riêng liệt kê **vấn đề đặc tả mà OQ hiện có còn bỏ sót**. Nêu nguồn/bản đã đọc, phần chưa kiểm được, bảng bao phủ và kết luận (Chưa đủ đầu vào / Cần chỉnh sửa / Chờ xác nhận nghiệp vụ / Đủ điều kiện trình người phụ trách).
 
     Không sửa bất kỳ file nào khác (thiết kế, phân tích, đặc tả, rules, skill, script); không tự đánh giá nhận xét của mình là Đúng/Sai/Thừa; không tự chọn phía của mâu thuẫn. Cuối cùng ghi một mục mới `P-kk` (số tiếp theo) vào `docs/workflow/prompt-log.md` với prompt thực tế, công cụ/model, file đã đọc và kết quả. Xong khi file báo cáo tồn tại và có đủ các phần trên.
+
+### P-26 – Review bổ sung class, state và API liên quan US-PAY-01
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 09/11/2026 / người dùng trong chat, chưa cung cấp tên người chạy lượt này |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; PlantUML 1.2024.3; Java 27.0.1.0.3 |
+| Vai trò / skill / version | reviewer / naming-versioning / review thiết kế v1, đối chiếu thay đổi US-01 v2 |
+| Nguồn đã đưa vào | AGENTS.md; rules sources/common/payment-scope/handoff/reviewer; naming-versioning; payment-context; workflow README; TA-SPEC; SYS-US-01 v1/v2; OQ v2 phần US-01; class/state v1; 03 v1; 04 v1 phần chung/E1–E8/đối chiếu sequence; 05 v1 §6–14; sequence US-01 v1 và các nhánh preview/K1 v2; ai-review-01-v1; nhật ký và Git history tên file review. Không đọc trực tiếp PDF hoặc khảo sát lại src. |
+| File đầu ra | [ai-review-05-v1.md](../review/payment-management/ai-review-05-v1.md): 9 nhận xét R05-01..09 (1 Cao, 7 TB, 1 Thấp); tách 3 khoảng trống kỹ thuật v1 và 6 khoảng trống chuyển tiếp sang v2; bảng bao phủ và giới hạn đầu vào. Chọn số 05 vì lịch sử có tên review 03/04 đã bị xóa; không đọc lại nội dung các báo cáo bị xóa. |
+| Kiểm chứng sơ đồ | `java -jar C:/Users/phong/.vscode/extensions/jebbs.plantuml-2.18.1/plantuml.jar -charset UTF-8 -checkonly` hai file class-v1/state-machine-v1 → exit 0; `-tsvg -o <TEMP>/codex-us01-review05` → exit 0. Python parse XML so text SVG repo với render lại: class 175/175, state 48/48 giống nhau. Không xem bố cục bằng mắt. |
+| Kiểm chứng tài liệu | Python UTF-8: 9 ID nhận xét duy nhất; liên kết cục bộ và số cột các bảng đúng; SHA-256 của 70 file đầu vào analysis/design/requirements/review/src giữ nguyên. `git diff --check` trước và sau khi thêm mục nhật ký → exit 0; chỉ có cảnh báo LF/CRLF của prompt-log. |
+| Kiểm tra workspace | `python.exe -X utf8 scripts/verify_agent_config.py` → FAIL 4 checks có sẵn: README trỏ thiếu README review; prompt-log trỏ thiếu 03 v2; README review không tồn tại; tên baocao-muc2-us-01.md và lichsuchat-us-01.txt khác quy ước. Không sửa các file ngoài phạm vi để làm kiểm tra qua. |
+| Phần AI viết / nhóm sửa | AI viết báo cáo và mục nhật ký này; chưa có đánh giá nhóm. Không tự chấm Đúng/Sai/Thừa, không đóng OQ, không sửa đặc tả/thiết kế/mã ứng dụng hoặc báo cáo mục 2. Không chạy ứng dụng/test API/giao dịch/hiệu năng; chưa commit. |
+
+Prompt nguyên văn:
+
+    thực hiện review thêm các class, state diagram, api, liên quan đến us 01
+
+### P-27 – Bổ sung review 05 vào báo cáo US-01 và tổng hợp review 01 để người dùng nhận xét
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 09/11/2026 / người dùng trong chat, chưa cung cấp họ tên |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15 |
+| Vai trò / version | Tổng hợp báo cáo theo yêu cầu người dùng / analysis v2; không thực hiện thiết kế hoặc sửa báo cáo reviewer |
+| Nguồn đã đưa vào | Báo cáo mục 2 US-01 hiện có; ai-review-05-v1.md §4; ai-review-01-v1.md §3–5; AGENTS.md và rules/handoff.md; các rule/skill đã đọc ở P-26 tiếp tục áp dụng |
+| File đầu ra | [baocao-muc2-us-01.md](../analysis/payment-management/v2/baocao-muc2-us-01.md): giữ 20 vấn đề nghiệp vụ và 2 kỹ thuật cũ; thêm mục 3 gồm 9 nhận xét R05-01..09, tất cả Chờ bạn nhận xét. Chuyển link tới review 04 đã mất thành ghi chú nguồn lịch sử chưa đối chiếu lại được. Tổng hợp 10 nhận xét R01 liên quan phát triển US-01 trong chat, gồm 5 trực tiếp và 5 ở điểm giao/tác động chung; không tự đánh giá hoặc ghi thành quyết định của người dùng. |
+| Kiểm chứng | Python đọc UTF-8: so với HEAD xác nhận mục 1–2 giữ nguyên; 3 bảng có 20/2/9 dòng và 5 cột; đủ 9 ID R05 duy nhất và 9 trạng thái chờ nhận xét; mọi link cục bộ trong báo cáo tồn tại; 10 ID R01 dùng trong chat có trong nguồn. `git diff --check` trước/sau ghi nhật ký: exit 0, chỉ cảnh báo LF/CRLF. Không render lại sơ đồ vì không sửa UML; không chạy kiểm thử ứng dụng/hiệu năng. |
+| Phần AI viết / nhóm sửa | AI viết phần bổ sung và tổng hợp; người dùng chưa nhận xét nội dung mới. Không sửa ai-review-01/05, sys-us, OQ, class/state/API/sequence hoặc mã ứng dụng; không thay đổi đánh giá cũ ở mục 1–2. Chưa commit. |
+
+Prompt nguyên văn (JSON; escape dấu đóng link để nhật ký không tạo link tương đối ngoài ý muốn):
+
+```json
+"bổ sung vào [baocao-muc2-us-01.md\u005d(docs/analysis/payment-management/v2/baocao-muc2-us-01.md) .\n\ntiếp theo thực hiện tổng hợp toàn bộ liên quan đến us-01 trong [ai-review-01-v1.md\u005d(docs/review/payment-management/ai-review-01-v1.md) , sau đó tôi sẽ nhận xét"
+```
+
+### P-28 – Ghi đánh giá người dùng, bổ sung OQ US-01 và chuẩn bị commit/push
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 10/11/2026 / người dùng trong chat, chưa cung cấp họ tên |
+| Công cụ / model | Codex / GPT-6; PowerShell; Python 3.12.15; Git |
+| Vai trò / phạm vi | Ghi nhận đánh giá của người dùng và OQ liên quan US-01; không chạy reviewer độc lập, không sửa thiết kế ứng dụng |
+| Nguồn | TA-SPEC thông qua vị trí đã truy vết trong OQ/review; ai-review-01-v1; open-questions-v1; câu trả lời trực tiếp của người dùng; AGENTS.md và các rule chung |
+| Đầu ra lượt này | ai-review-01-v1 thêm §8: 5 Đúng, 1 Sai, 4 Thừa theo người dùng; OQ v1 thêm phần có ngày/tham chiếu, chi tiết thuế cho OQ-US03-03, OQ-US01-07 xác nhận có kiểm tra lại và giữ mở cách xử lý khi không đạt; ghi nhận q/p nguồn không âm. Giữ nội dung review và 25 dòng OQ ban đầu. Người dùng chỉ định cập nhật trực tiếp file v1 trong lượt này. |
+| Kiểm chứng | Python UTF-8: 10 đánh giá đúng số lượng/phân loại, bảng/link hợp lệ; review gốc giữ nguyên ngoài dòng chỉ dẫn mới, 25 dòng OQ cũ giữ nguyên; có 26 OQ duy nhất sau thêm OQ-US01-07. `git diff --check` trước staging → exit 0, chỉ cảnh báo LF/CRLF. Không chạy test ứng dụng/đo hiệu năng vì chỉ thay tài liệu. |
+| Kiểm tra workspace | `python.exe -X utf8 scripts/verify_agent_config.py` → FAIL 4 checks có sẵn: thiếu README review được dẫn ở README; nhật ký dẫn thiếu 03 v2; thiếu chính file README review; hai tên file analysis/v2 không theo quy ước. Không tự sửa các file ngoài yêu cầu để làm check qua. |
+| Git được người dùng cho phép | `git add .`, commit tất cả thay đổi hiện có và push nhánh hiện tại v2-us-01 lên origin. Bao gồm báo cáo US-01 và các file review/đánh giá mới đang chờ commit từ các lượt trước. Trước lượt này nhánh đã ahead origin/v2-us-01 6 commit; push sẽ gửi cả các commit chưa đẩy. Kết quả commit/push xem Git và thông báo bàn giao; dòng này không tuyên bố đã push trước khi chạy. |
+| Làm sạch trước commit | Lần kiểm tra staged đầu tiên phát hiện 3 dòng trailing whitespace trong phần trích prompt của review-assessment-01-v1.md đang chờ commit; đã bỏ đúng khoảng trắng cuối các dòng đó, giữ nội dung. Git index bị sandbox chặn ở lần đầu, đã dùng cơ chế cấp quyền của công cụ để chạy lại git add theo yêu cầu. |
+| Phần AI / người dùng | Người dùng cung cấp đánh giá và xác nhận nghiệp vụ; AI ghi lại, không tự chấm hoặc bổ sung lý do cho các mục chỉ ghi Sai/Thừa. Không thêm OQ từ R01-09/22/24, không tự sửa schema từ R01-15 hoặc ma trận từ R01-17. |
+
+Prompt nguyên văn (JSON; escape dấu đóng link để không tạo link sai trong nhật ký):
+
+```json
+"bổ sung đánh giá này vào [ai-review-01-v1.md\u005d(docs/review/payment-management/ai-review-01-v1.md) \nR01-02: bổ sung câu hỏi về thuế vào OQ. đúng\nR01-03: đây là nghiệp vụ ban đầu, v2 là tôi validate sâu hơn. đúng\nR01-15: sai\nR01-17: thừa\nR01-27: đúng\nR01-05: đúng\nR01-08: đúng. có kiểm tra lại\nR01-09: thừa.\nR01-22: thừa. bảng sản lượng và bảng giá đã không âm, hệ thống chỉ tự động lấy mà map qua bảng thanh toán.\nR01-24: thừa.\n\nvề các câu hỏi open question, bổ sung vào [open-questions-v1.md\u005d(docs/analysis/payment-management/v1/open-questions-v1.md) đúng phạm vi us 01.\n\nsau đó dùng git add . và commit, push lên nhánh hiện tại"
+```
