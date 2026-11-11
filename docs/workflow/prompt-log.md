@@ -862,3 +862,63 @@ Prompt nguyên văn:
 ```json
 "Có 2 use case nên tách ra thành 2 puml, đánh dấu -1 -2"
 ```
+
+
+### P-34 – Tách US04 thành hai bảng use case theo cách trình bày US03
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Người dùng qua Codex |
+| Công cụ / model | Codex (không xác định mã model cụ thể); Python 3 |
+| Vai trò / phạm vi | ba / analysis v2; áp dụng grounded-writing để giữ nội dung khi tách bảng; không bổ sung quy tắc nghiệp vụ |
+| Nguồn / đầu ra | Đọc bản hiện tại của sys-us-04-v2.md và cách trình bày sys-us-03-v2.md. Cập nhật [sys-us-04-v2.md](../analysis/payment-management/v2/sys-us-04-v2.md): mục 1.1 SYS-US-04 lập hồ sơ (KTT, bước 1–8); mục 1.2 SYS-US-04b duyệt hoặc từ chối (GĐKD, bước 1–6); phân chia Actor, Trigger, tiền/hậu điều kiện và ngoại lệ tương ứng |
+| Đổi nhãn | B1–B6 → bước 1–6 trong bảng thứ hai; B7 → R, tham chiếu B1/B2–B4 → bước 1/2–4; B2a–B5a → 2a–5a. X1 giữ ở bảng lập hồ sơ. SYS-US-04b là mã nội bộ theo cách dùng SYS-US-03b, không phải mã mới trong đề |
+| Kiểm chứng | Python kiểm tra hai bảng, mỗi bảng đủ 11 mục; số bước chính 8 và 6; không còn nhãn B1–B7. Đọc lại nội dung UTF-8 và đối chiếu bản trước khi tách. git diff --check đạt. python scripts/verify_agent_config.py gặp lỗi encoding đầu ra Windows; chạy lại python -X utf8 scripts/verify_agent_config.py: FAIL với 2 nhóm lỗi có sẵn (liên kết thiếu trong prompt-log.md và tên sơ đồ seq-us-03-1/2-v2), không phát sinh từ file US04 |
+| Phần AI / nhóm | Codex tách bảng và chỉnh các câu nối/tham chiếu. Chưa có sửa bổ sung của nhóm trong lần chạy này; chưa commit |
+| Giới hạn | Chỉ cập nhật đặc tả US04 và nhật ký. Sequence US04 vẫn dùng nhãn B của bản trước; chưa đồng bộ sơ đồ trong yêu cầu tách bảng này |
+
+Prompt nguyên văn:
+
+```text
+vậy US-04 tách ra thành 2 cái bảng như US-03 đi nhìn cho dễ
+```
+
+
+### P-35 – Đổi X1 thành dòng Ràng buộc chung trong US04
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Người dùng qua Codex |
+| Công cụ / model | Codex (không xác định mã model cụ thể); Python 3 |
+| Vai trò / phạm vi | ba / analysis v2; chỉnh cách trình bày theo yêu cầu trực tiếp |
+| Nguồn / đầu ra | [sys-us-04-v2.md](../analysis/payment-management/v2/sys-us-04-v2.md), mục 1.1: chuyển nội dung X1 khỏi Luồng ngoại lệ thành hàng Ràng buộc chung; giữ nguyên câu quy định |
+| Kiểm chứng | Python kiểm tra thay thế duy nhất, không còn X1 trong đặc tả; đảo ngược phép thay thế khôi phục đúng toàn bộ byte trước sửa. git diff --check đạt |
+| Phần AI / nhóm | Codex chuyển hàng và ghi nhật ký; chưa có sửa bổ sung của nhóm trong lần chạy này; chưa commit |
+
+Prompt nguyên văn:
+
+```text
+đổi thành ràng buộc chung
+```
+
+
+### P-36 – Tách sequence US04 theo hai bảng đặc tả
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Người dùng qua Codex |
+| Công cụ / model | Codex (không xác định mã model cụ thể); Python 3; Java 21.0.12; PlantUML 1.2024.3 (jar jebbs.plantuml 2.18.1) |
+| Vai trò / skill / version | design / sequence-diagram, naming-versioning / v2 |
+| Nguồn | sys-us-04-v2.md hiện tại (mục 1.1 và 1.2); sequence US04 v2 trước khi tách; cách đặt tên sequence US03; TA-SPEC §4.4, PAY-05, §6; rules/design.md |
+| Đầu ra | [seq-us-04-1-v2.puml](../design/payment-management/v2/diagrams/seq-us-04-1-v2.puml) + [SVG](../design/payment-management/v2/diagrams/seq-us-04-1-v2.svg): KTT lập hồ sơ, bước 1–8. [seq-us-04-2-v2.puml](../design/payment-management/v2/diagrams/seq-us-04-2-v2.puml) + [SVG](../design/payment-management/v2/diagrams/seq-us-04-2-v2.svg): GĐKD duyệt/từ chối, bước 1–6 và R. Cập nhật [danh mục và truy vết](../design/payment-management/v2/03-detailed-design-v2.md); bỏ hai file bản gộp seq-us-04-v2.puml/.svg |
+| Thay đổi | Tách hai yêu cầu độc lập, bỏ actor không tham gia khỏi mỗi sơ đồ; B1–B6 → 1–6, B7 → R, B2a–B5a → 2a–5a; X1 → note Ràng buộc chung. Giữ kiểm tra, transaction, xử lý đồng thời, audit và trạng thái bảng gốc. Cập nhật SHA-256 đầu vào. Không thay quy tắc nghiệp vụ |
+| Kiểm chứng | Java -version và PlantUML -version; -checkonly hai file exit 0; -tsvg hai file exit 0; -tpng vào thư mục tạm exit 0 và đã xem cả hai ảnh. Python xác nhận đủ nhãn bước/ngoại lệ, đúng tên @startuml, không còn B1–B7/X1, chỉ có actor tương ứng; SVG XML hợp lệ (110741 và 113354 byte). Liên kết cục bộ trong danh mục mới đều tồn tại; git diff --check đạt |
+| Kiểm tra workspace | python -X utf8 scripts/verify_agent_config.py: FAIL 2 nhóm kiểm tra. Liên kết thiếu trong prompt-log.md là lỗi có sẵn. Naming báo cả hậu tố US03 -1/-2 có sẵn và US04 -1/-2 mới theo cách tách đã được người dùng yêu cầu; không tự sửa quy ước |
+| Phần AI / nhóm | Codex tách sequence, cập nhật danh mục, kết xuất và kiểm tra. Chưa có sửa bổ sung của nhóm trong lần chạy này; chưa commit |
+| Giới hạn | Design Pending Approval; OQ-03 và OQ-US04-01/02/03 vẫn giữ nhãn cần xác nhận theo bộ thiết kế. Không sửa đặc tả hoặc mã ứng dụng |
+
+Prompt nguyên văn:
+
+```text
+vậy hãy tách
+```
