@@ -1,0 +1,106 @@
+@startuml seq-us-03-2-v2
+title Chỉnh sửa bảng thanh toán bị từ chối (SYS-US-03b) – v2
+' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-33 (tách từ P-32)
+' Đầu vào: docs/analysis/payment-management/v2/sys-us-03-v2.md (cùng version) – mục 1.2 SYS-US-03b.
+' Mục đích: reopen (Rejected -> Draft) khi NVKD bấm "Chỉnh sửa"; giữ lý do từ chối để tham chiếu.
+' Phạm vi: US-PAY-03 | PAY-08 (bảng Rejected sửa rồi trình lại) | NFR-PAY-01 (giao dịch trạng thái + audit).
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: xem P-33 trong docs/workflow/prompt-log.md.
+' Bảng về Rejected ở use case SYS-US-03 (seq-us-03-1-v2.puml, Phần 2).
+'
+' Nhãn [..] trên message = bước trong sys-us-03-v2 mục 1.2: 1-4; ngoại lệ 2a, 2b, 3a.
+'
+' Tên dùng tạm – cần đồng bộ vào 03/04-v2 (chưa tạo), lấy theo 03-v1 §1:
+'   PaymentApprovalService.Reopen; IContractReader.GetContract (danh sách NVKD được phân công)
+'   POST /api/payment-sheets/{id}/reopen; expectedVersion; mã lỗi HTTP là tạm.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD\n(phụ trách hợp đồng)" as K
+participant "PaymentController" as API
+control "PaymentApprovalService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\n<<read-only>>" as SRC
+participant "IAuditLog" as A
+participant "IUnitOfWork" as UOW
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over K, S #FFF4DB
+  Chỉ NVKD được phân công phụ trách hợp đồng mới mở chỉnh sửa được.
+  Hệ thống không tự chuyển Rejected về Draft; chỉ chuyển khi NVKD bấm "Chỉnh sửa".
+end note
+
+K -> API : Mở bảng Rejected, xem lý do, bấm "Chỉnh sửa"\nPOST /api/payment-sheets/{id}/reopen {expectedVersion} [1]
+API -> API : Kiểm tra đăng nhập và vai trò NVKD [2]
+alt chưa đăng nhập / không phải NVKD
+  API --> K : 401 / 403 – từ chối [2a]
+else NVKD
+  API -> S : Reopen(id, expectedVersion, currentUser)
+  activate S
+  S -> R : GetById(id)
+  R --> S : sheet / null
+  alt không tìm thấy bảng
+    S --> API : NOT_FOUND
+    API --> K : 404 – từ chối [2a]
+  else tìm thấy
+    S -> SRC : GetContract(sheet.contractId) – danh sách NVKD được phân công
+    SRC --> S : contract(assignees)
+    alt NVKD không được phân công hợp đồng
+      S --> API : FORBIDDEN
+      API --> K : 403 – từ chối [2a]
+    else status != Rejected
+      S --> API : INVALID_STATE
+      API --> K : 409 – từ chối; bảng Draft sửa trực tiếp theo SYS-US-01 [2b]
+    else status = Rejected
+      group Transaction reopen – NFR-PAY-01 [3]
+        S -> UOW : Begin()
+        S -> R : Transition(id, Rejected -> Draft, expectedVersion)\n(giữ rejectReason để tham chiếu)
+        R -> DB : UPDATE … WHERE status='Rejected' AND version=:expectedVersion
+        DB --> R : rowsAffected / lỗi
+        R --> S : changed / conflict / error
+        alt conflict – bảng vừa bị thay đổi
+          S -> UOW : Rollback()
+          S --> API : CONCURRENT_MODIFICATION
+          API --> K : 409 – báo lỗi [3a]
+        else lỗi lưu
+          S -> UOW : Rollback()
+          S --> API : PERSISTENCE_ERROR
+          API --> K : 500 – báo lỗi [3a]
+        else changed
+          S -> A : Append(reopen, id, userId, now,\nRejected -> Draft)
+          A -> DB : INSERT audit (cùng giao dịch)
+          A --> S : saved / error
+          alt lỗi ghi audit log
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR
+            API --> K : 500 – báo lỗi [3a]
+          else audit OK
+            S -> UOW : Commit()
+            UOW --> S : committed / failed
+            alt commit thất bại
+              S --> API : PERSISTENCE_ERROR
+              API --> K : 500 – báo lỗi [3a]
+            else committed
+              S --> API : sheet(status = Draft, rejectReason)
+              API --> K : 200 – mở biểu mẫu sửa bảng Draft [4]
+              note right of K
+                Sửa theo SYS-US-01 (seq-us-01-v2);
+                sau khi sửa, NVKD trình lại theo SYS-US-02 (seq-us-02-v2).
+              end note
+            end
+          end
+        end
+      end
+    end
+  end
+  deactivate S
+end
+
+legend bottom
+  Nguồn: sys-us-03-v2.md mục 1.2 (SYS-US-03b). Chuyển trạng thái ghi audit log trong cùng giao dịch.
+  [ĐỀ XUẤT KỸ THUẬT] endpoint, mã lỗi HTTP, expectedVersion + cập nhật có điều kiện – tên dùng tạm, cần đồng bộ vào 03/04-v2.
+endlegend
+@enduml

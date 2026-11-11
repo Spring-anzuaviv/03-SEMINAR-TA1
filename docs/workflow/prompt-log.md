@@ -794,3 +794,71 @@ Prompt nguyên văn (JSON; escape dấu đóng link để không tạo link sai 
 ```json
 "bổ sung đánh giá này vào [ai-review-01-v1.md\u005d(docs/review/payment-management/ai-review-01-v1.md) \nR01-02: bổ sung câu hỏi về thuế vào OQ. đúng\nR01-03: đây là nghiệp vụ ban đầu, v2 là tôi validate sâu hơn. đúng\nR01-15: sai\nR01-17: thừa\nR01-27: đúng\nR01-05: đúng\nR01-08: đúng. có kiểm tra lại\nR01-09: thừa.\nR01-22: thừa. bảng sản lượng và bảng giá đã không âm, hệ thống chỉ tự động lấy mà map qua bảng thanh toán.\nR01-24: thừa.\n\nvề các câu hỏi open question, bổ sung vào [open-questions-v1.md\u005d(docs/analysis/payment-management/v1/open-questions-v1.md) đúng phạm vi us 01.\n\nsau đó dùng git add . và commit, push lên nhánh hiện tại"
 ```
+
+### P-30 – Viết lại đặc tả sys-us-03-v2 dựa trên những gì tôi đã check và chỉ ra lỗi
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Đan Anh |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Python 3 |
+| Vai trò / phạm vi | ba / analysis v2: viết lại đặc tả SYS-US-03 v2 dựa trên kết quả người dùng tự kiểm tra và các lỗi đã chỉ ra; sau đó chỉnh format markdown |
+| File đầu ra | [sys-us-03-v2.md](../analysis/payment-management/v2/sys-us-03-v2.md) viết lại toàn bộ, thay bản v2 trước đó: bảng use case 11 hàng (Tên UC, Use case ID, Mô tả, Actor, Độ ưu tiên, Trigger, Tiền điều kiện, Hậu điều kiện, Dòng cơ bản, Luồng thay thế, Luồng ngoại lệ). Chỉnh format: thêm tiêu đề H1 và mục `## 1. Use case`, header `Mục \| Đặc tả`, bỏ `&nbsp;`, escape `1\.` và thụt đầu dòng sau `<br>` |
+| Kiểm chứng | Python UTF-8: 11 hàng dữ liệu giữ nguyên, không còn `&nbsp;`/`\.`; `git diff --check` exit 0 |
+| Lưu ý | Bản viết lại bỏ khối thông tin, bảng bước kèm căn cứ, tham chiếu OQ và AC của bản v2 trước. Chưa commit. |
+
+Prompt nguyên văn:
+
+```json
+"chinh format markdown"
+```
+
+### P-31 – Tách luồng D thành use case “Chỉnh sửa bảng thanh toán bị từ chối”
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Đan Anh |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Python 3 |
+| Vai trò / phạm vi | ba / analysis v2: tách luồng thay thế D của SYS-US-03 thành use case riêng theo yêu cầu người dùng; không thêm quy tắc nghiệp vụ mới |
+| File đầu ra | [sys-us-03-v2.md](../analysis/payment-management/v2/sys-us-03-v2.md): mục 1.1 SYS-US-03 bỏ luồng D, ngoại lệ D2a/D2b/D3a, phần NVKD ở Actor/Trigger và hậu điều kiện “Mở chỉnh sửa”; Mô tả trỏ tới mục 1.2. Thêm mục 1.2 SYS-US-03b “Chỉnh sửa bảng thanh toán bị từ chối”: D1–D4 → bước 1–4, D2a/D2b/D3a → 2a/2b/3a; tiền/hậu điều kiện suy ra từ D2/D3 và hậu điều kiện cũ |
+| Kiểm chứng | Không còn mã D* trong file; `git diff --check` exit 0 |
+| Lưu ý | Mã `SYS-US-03b` là mã tự đặt (naming-versioning chưa có mẫu cho use case con), giữ nguyên `SYS-US-03` vì đang được tham chiếu ở nơi khác. Chưa commit. |
+
+Prompt nguyên văn:
+
+```json
+"Luồng D. là 1 use case nữa \"Chỉnh sửa bảng thanh toán bị từ chối\", bổ sung vào sys-uc-03-v2.md"
+```
+
+### P-32 – Vẽ lại seq-us-03-v2 theo sys-us-03-v2 (SYS-US-03 và SYS-US-03b)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Đan Anh |
+| Công cụ / model | Claude Code / Claude Opus 5.5; PlantUML 1.2024.3 (jar của extension VS Code jebbs.plantuml 2.18.1); Java Zulu 17.0.15 (JRE đi kèm Tableau Public, không có Java trên PATH) |
+| Vai trò / version | design / v2; chỉ suy ra từ sys-us-03-v2.md cùng version |
+| File đầu ra | [seq-us-03-v2.puml](../design/payment-management/v2/diagrams/seq-us-03-v2.puml), [seq-us-03-v2.svg](../design/payment-management/v2/diagrams/seq-us-03-v2.svg) – ghi đè bản P-29. Phần 1 duyệt (bước 1–10, 2a–8c, 9a), Phần 2 từ chối (R1–R10, R7a, R7b), Phần 3 SYS-US-03b (03b-1..03b-4, 03b-2a, 03b-2b, 03b-3a). Bỏ nhãn D1–D4, bỏ tham chiếu AC §3 và chi tiết thuế suất/làm tròn vì đặc tả v2 hiện không có |
+| Kiểm chứng | `java -jar plantuml.jar -charset UTF-8 -checkonly` → exit 0; `-tsvg` → exit 0, SVG 128.905 byte, không có thông báo lỗi; grep xác nhận đủ mọi nhãn bước của đặc tả; `git diff --check` exit 0 |
+| Lưu ý | Endpoint, mã lỗi HTTP, expectedVersion là [ĐỀ XUẤT KỸ THUẬT], tên dùng tạm theo 03-v1 – chưa có 03/04-v2 để đồng bộ và chưa có danh mục sơ đồ trong 03-detailed-design-v2. Đặc tả không nêu lỗi đọc dữ liệu ở SYS-US-03b nên sơ đồ không vẽ nhánh này. Chưa commit. |
+
+Prompt nguyên văn:
+
+```json
+"Tạo 'docs\design\payment-management\v2\diagrams\seq-us-03-v2.puml', 'docs\design\payment-management\v2\diagrams\seq-us-03-v2.svg' tương ứng, đảm bảo khớp với đặc tả"
+```
+
+### P-33 – Tách seq-us-03-v2 thành hai sơ đồ theo hai use case
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 11/11/2026 / Đan Anh |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Python 3; PlantUML 1.2024.3 (jar jebbs.plantuml 2.18.1); Java Zulu 17.0.15 (JRE của Tableau Public) |
+| Vai trò / version | design / v2; nội dung lấy nguyên từ bản P-32, không đổi luồng |
+| File đầu ra | [seq-us-03-1-v2.puml](../design/payment-management/v2/diagrams/seq-us-03-1-v2.puml) + .svg: SYS-US-03 duyệt (1–10) và từ chối (R1–R10). [seq-us-03-2-v2.puml](../design/payment-management/v2/diagrams/seq-us-03-2-v2.puml) + .svg: SYS-US-03b, nhãn bước đổi từ `03b-k` về `k` (1–4, 2a, 2b, 3a). Xóa seq-us-03-v2.puml/.svg (bản gộp). Không sửa sơ đồ của US khác |
+| Kiểm chứng | Lần đầu `-checkonly` báo lỗi dòng 24/22 (tên lifeline bị xuống dòng thật thay vì `\n`); đã sửa. Lần hai `-checkonly` và `-tsvg` cho 2 file → exit 0; grep đủ nhãn bước của mục 1.1 và 1.2; `git diff --check` exit 0 |
+| Lưu ý | Hậu tố `-1`/`-2` theo yêu cầu người dùng, khác quy ước naming-versioning §3 (tách theo thao tác `-approve`, `-reject`…); `scripts/verify_agent_config.py` sẽ báo hai tên này. Chưa sửa quy ước. Chưa commit. |
+
+Prompt nguyên văn:
+
+```json
+"Có 2 use case nên tách ra thành 2 puml, đánh dấu -1 -2"
+```

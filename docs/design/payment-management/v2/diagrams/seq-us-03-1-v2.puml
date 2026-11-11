@@ -1,0 +1,225 @@
+@startuml seq-us-03-1-v2
+title Duyệt / từ chối bảng thanh toán (SYS-US-03) – v2
+' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-33 (tách từ P-32)
+' Đầu vào: docs/analysis/payment-management/v2/sys-us-03-v2.md (cùng version) – mục 1.1 SYS-US-03.
+' Mục đích: approve (PendingApproval -> Approved), reject (PendingApproval -> Rejected).
+' Phạm vi: US-PAY-03 | PAY-05, 06, 07, 08 | NFR-PAY-01 (giao dịch trạng thái + audit).
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: xem P-33 trong docs/workflow/prompt-log.md.
+' Use case còn lại (SYS-US-03b – chỉnh sửa bảng bị từ chối): seq-us-03-2-v2.puml.
+'
+' Nhãn [..] trên message = bước trong sys-us-03-v2 mục 1.1:
+'   Phần 1 (duyệt):    1-10; ngoại lệ 2a, 3a, 4a, 5a, 6a, 7a, 8a, 8b, 8c; thay thế 9a
+'   Phần 2 (từ chối):  R1-R10; ngoại lệ R7a, R7b; dùng chung 2a-6a, 8a-8c, 9a
+'
+' Tên dùng tạm – cần đồng bộ vào 03/04-v2 (chưa tạo), lấy theo 03-v1 §1:
+'   PaymentApprovalService.Approve/Reject; PaymentSheet.RequiredApproverRole(); IsCreator(userId, sheet)
+'   POST /api/payment-sheets/{id}/approve | /reject; expectedVersion; mã lỗi HTTP là tạm.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "Người duyệt\nKTT / GĐKD" as U
+actor "NVKD\n(người lập bảng)" as K
+participant "PaymentController" as API
+control "PaymentApprovalService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\nIPriceReader\nIQuantityReader\n<<read-only>>" as SRC
+participant "IAuditLog" as A
+participant "IUnitOfWork" as UOW
+database "PaymentDatabase\n<<đề xuất>>" as DB
+participant "INotifier\n(trong hệ thống)" as N
+
+note over U, S #FFF4DB
+  Thẩm quyền theo vai trò, dựa trên tổng tiền đã lưu lúc lập (đã gồm thuế GTGT):
+  tổng >= 500.000.000 đ -> GĐKD; dưới mức đó -> KTT. Không vai trò nào duyệt thay;
+  mỗi người dùng chỉ một vai trò.
+  Người lập = người tạo bảng ở Draft; không được duyệt hay từ chối bảng của mình.
+  Thứ tự kiểm tra theo dòng cơ bản: đăng nhập/vai trò -> đọc bảng -> trạng thái
+  -> vai trò theo tổng -> người lập -> (duyệt: dữ liệu nguồn | từ chối: lý do).
+end note
+
+== Phần 1 – Duyệt (approve) ==
+U -> API : Chọn "Duyệt" trên bảng PendingApproval\nPOST /api/payment-sheets/{id}/approve {expectedVersion} [1]
+API -> API : Kiểm tra đăng nhập và vai trò [2]
+alt chưa đăng nhập
+  API --> U : 401 – yêu cầu đăng nhập [2a]
+else không có vai trò KTT / GĐKD
+  API --> U : 403 – từ chối [2a]
+else vai trò KTT hoặc GĐKD
+  API -> S : Approve(id, expectedVersion, currentUser)
+  activate S
+  S -> R : GetById(id) [3]
+  R --> S : sheet(status, total, createdBy, version, nguồn) / null / lỗi
+  alt không tìm thấy bảng
+    S --> API : NOT_FOUND
+    API --> U : 404 – báo lỗi [3a]
+  else lỗi đọc dữ liệu
+    S --> API : READ_ERROR
+    API --> U : 503 – báo lỗi [3a]
+  else status != PendingApproval (kể cả đã được người khác xử lý)
+    S --> API : INVALID_STATE
+    API --> U : 409 – từ chối, không thay đổi dữ liệu [4a]
+  else status = PendingApproval [4]
+    S -> S : requiredRole = sheet.RequiredApproverRole() [5]\ntổng >= 500.000.000 đ -> GĐKD; ngược lại KTT
+    alt vai trò người duyệt != requiredRole
+      S --> API : APPROVER_NOT_AUTHORIZED
+      API --> U : 403 – sai vai trò theo tổng tiền [5a]
+    else vai trò khớp
+      S -> S : IsCreator(userId, sheet) [6]
+      alt người duyệt là người lập bảng (PAY-07)
+        S --> API : SELF_APPROVAL_FORBIDDEN
+        API --> U : 403 – từ chối [6a]
+      else không phải người lập
+        S -> SRC : Đọc lại hợp đồng, bảng giá đã dùng, bản ghi sản lượng nguồn [7]
+        SRC --> S : dữ liệu nguồn / lỗi
+        S -> S : Kiểm tra: hợp đồng Active, bảng giá còn Active,\nsản lượng vẫn đã đối soát và không thay đổi
+        alt lỗi đọc nguồn hoặc nguồn không còn đạt
+          S --> API : SOURCE_NOT_VALID
+          API --> U : 409 – chặn duyệt, bảng giữ PendingApproval;\nngười duyệt có thể từ chối để NVKD tải lại nguồn [7a]
+        else nguồn đạt
+          group Transaction approve – NFR-PAY-01 [8]
+            S -> UOW : Begin()
+            S -> R : Transition(id, PendingApproval -> Approved, expectedVersion)
+            R -> DB : UPDATE … WHERE status='PendingApproval' AND version=:expectedVersion
+            DB --> R : rowsAffected / lỗi
+            R --> S : changed / conflict / error
+            alt conflict – yêu cầu duyệt/từ chối khác đã xử lý trước
+              S -> UOW : Rollback()
+              S --> API : CONCURRENT_MODIFICATION
+              API --> U : 409 – thông báo xung đột [8b]
+            else lỗi lưu trạng thái
+              S -> UOW : Rollback() – bảng giữ PendingApproval
+              S --> API : PERSISTENCE_ERROR
+              API --> U : 500 – báo lỗi, không gửi thông báo [8a]
+            else changed
+              S -> A : Append(approve, id, userId, now,\nPendingApproval -> Approved)
+              A -> DB : INSERT audit (cùng giao dịch)
+              A --> S : saved / error
+              alt lỗi ghi audit log
+                S -> UOW : Rollback() – bảng giữ PendingApproval
+                S --> API : PERSISTENCE_ERROR
+                API --> U : 500 – báo lỗi, không gửi thông báo [8a]
+              else audit OK
+                S -> UOW : Commit()
+                UOW --> S : committed / failed / unknown
+                alt commit thất bại
+                  S --> API : PERSISTENCE_ERROR
+                  API --> U : 500 – báo lỗi, không gửi thông báo [8a]
+                else không xác định được kết quả lưu
+                  S --> API : RESULT_UNKNOWN
+                  API --> U : 503 – báo chưa xác định, người duyệt xem lại trạng thái bảng [8c]
+                else committed
+                  S -> N : NotifyResult(id, approve, recipient = createdBy) [9]
+                  N -> K : Thông báo trong hệ thống: "Bảng đã được duyệt"
+                  N --> S : sent / failed
+                  opt gửi thông báo thất bại [9a]
+                    note right of S : Kết quả duyệt giữ nguyên;\nbáo người duyệt thông báo chưa gửi được.
+                  end
+                  S --> API : result(status = Approved, notificationStatus)
+                  API --> U : 200 – duyệt thành công [10]
+                end
+              end
+            end
+          end
+          note right of S
+            Approved: không được sửa (PAY-05).
+            Chuyển bảng Approved sang kế toán nằm ngoài phạm vi module.
+          end note
+        end
+      end
+    end
+  end
+  deactivate S
+end
+
+== Phần 2 – Từ chối (reject) – rẽ từ bước 1 ==
+U -> API : Chọn "Từ chối" và nhập lý do\nPOST /api/payment-sheets/{id}/reject {expectedVersion, reason} [R1]
+API -> API : Kiểm tra đăng nhập và vai trò [R2]
+alt chưa đăng nhập / không có vai trò KTT, GĐKD
+  API --> U : 401 / 403 [2a]
+else vai trò KTT hoặc GĐKD
+  API -> S : Reject(id, reason, expectedVersion, currentUser)
+  activate S
+  S -> R : GetById(id) [R3]
+  R --> S : sheet / null / lỗi
+  alt không tìm thấy bảng / lỗi đọc dữ liệu
+    S --> API : NOT_FOUND / READ_ERROR
+    API --> U : 404 / 503 – báo lỗi [3a]
+  else status != PendingApproval [R4]
+    S --> API : INVALID_STATE
+    API --> U : 409 – từ chối, không thay đổi dữ liệu [4a]
+  else vai trò != sheet.RequiredApproverRole() [R5]
+    S --> API : APPROVER_NOT_AUTHORIZED
+    API --> U : 403 [5a]
+  else người thao tác là người lập bảng [R6] (PAY-07)
+    S --> API : SELF_APPROVAL_FORBIDDEN
+    API --> U : 403 [6a]
+  else lý do rỗng hoặc chỉ khoảng trắng [R7] (PAY-08)
+    S --> API : REASON_REQUIRED
+    API --> U : 400 – yêu cầu nhập lý do, bảng giữ PendingApproval [R7a]
+  else lý do quá 500 từ [R7]
+    S --> API : REASON_TOO_LONG
+    API --> U : 400 – từ chối, bảng giữ PendingApproval [R7b]
+  else lý do hợp lệ (không kiểm tra lại dữ liệu nguồn)
+    group Transaction reject – NFR-PAY-01 [R8]
+      S -> UOW : Begin()
+      S -> R : Transition(id, PendingApproval -> Rejected, expectedVersion,\nrejectReason = reason)
+      R -> DB : UPDATE … WHERE status='PendingApproval' AND version=:expectedVersion
+      DB --> R : rowsAffected / lỗi
+      R --> S : changed / conflict / error
+      alt conflict – yêu cầu khác đã xử lý trước
+        S -> UOW : Rollback()
+        S --> API : CONCURRENT_MODIFICATION
+        API --> U : 409 – thông báo xung đột [8b]
+      else lỗi lưu trạng thái
+        S -> UOW : Rollback() – bảng giữ PendingApproval
+        S --> API : PERSISTENCE_ERROR
+        API --> U : 500 – báo lỗi, không gửi thông báo [8a]
+      else changed
+        S -> A : Append(reject, id, userId, now,\nPendingApproval -> Rejected, reason)
+        A -> DB : INSERT audit (cùng giao dịch)
+        A --> S : saved / error
+        alt lỗi ghi audit log
+          S -> UOW : Rollback() – bảng giữ PendingApproval
+          S --> API : PERSISTENCE_ERROR
+          API --> U : 500 – báo lỗi, không gửi thông báo [8a]
+        else audit OK
+          S -> UOW : Commit()
+          UOW --> S : committed / failed / unknown
+          alt commit thất bại
+            S --> API : PERSISTENCE_ERROR
+            API --> U : 500 [8a]
+          else không xác định được kết quả lưu
+            S --> API : RESULT_UNKNOWN
+            API --> U : 503 – xem lại trạng thái bảng [8c]
+          else committed
+            S -> N : NotifyResult(id, reject, reason, recipient = createdBy) [R9]
+            N -> K : Thông báo trong hệ thống kèm lý do từ chối
+            N --> S : sent / failed
+            opt gửi thông báo thất bại [9a]
+              note right of S : Kết quả từ chối giữ nguyên;\nbáo thông báo chưa gửi được.
+            end
+            S --> API : result(status = Rejected, reason, notificationStatus)
+            API --> U : 200 – từ chối thành công [R10]
+          end
+        end
+      end
+    end
+    note right of S
+      Bảng dừng ở Rejected; hệ thống không tự chuyển về Draft.
+      Lý do lưu cùng bảng, NVKD xem được.
+      Về Draft chỉ khi NVKD bấm "Chỉnh sửa" (SYS-US-03b – seq-us-03-2-v2).
+    end note
+  end
+  deactivate S
+end
+
+legend bottom
+  Nguồn: sys-us-03-v2.md mục 1.1 (SYS-US-03). Mọi chuyển trạng thái ghi audit log trong cùng giao dịch.
+  [ĐỀ XUẤT KỸ THUẬT] endpoint, mã lỗi HTTP, expectedVersion + cập nhật có điều kiện (chống xử lý đồng thời),
+  thông báo gửi sau commit – tên dùng tạm, cần đồng bộ vào 03/04-v2.
+endlegend
+@enduml
