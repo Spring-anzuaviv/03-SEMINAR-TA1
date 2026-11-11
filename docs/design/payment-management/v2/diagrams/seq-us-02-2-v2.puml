@@ -1,0 +1,109 @@
+@startuml seq-us-02-2-v2
+title Gửi lại thông báo trình duyệt (SYS-US-02b) – v2
+' Đầu vào: sys-us-02-v2.md, mục 1.2 SYS-US-02b.
+' Phạm vi: thông báo ở TA-SPEC §4.2; hành vi gửi lại theo SYS-US-02b [OQ-US02-02].
+' Trạng thái: Design Pending Approval. Endpoint, mã lỗi và tên phương thức là tên tạm.
+' [ĐỀ XUẤT KỸ THUẬT] Mỗi người nhận có một khóa gửi trong lần trình hiện tại.
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+hide footbox
+autonumber
+
+actor "NVKD" as U
+boundary "PaymentController" as API
+control "PaymentService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\n<<read-only>>" as C
+participant "IUserDirectory\n<<read-only>>" as UD
+participant "INotificationRepository" as NR
+participant "INotifier" as N
+actor "Người duyệt\nKTT / GĐKD" as Approver
+
+note over U, S
+  NVKD phụ trách hợp đồng chọn “Gửi lại thông báo” trên bảng PendingApproval.
+  Áp dụng khi lần trình hiện tại chưa có người nhận hoặc còn thông báo gửi lỗi.
+  Phương án gửi lại trong v2 còn chờ xác nhận [OQ-US02-02].
+end note
+
+== SYS-US-02b · Nhận yêu cầu gửi lại ==
+U -> API : [1] POST /api/payment-sheets/{id}/submit/notifications/resend
+API -> API : [2] Kiểm tra đăng nhập và vai trò NVKD
+break [E2] Chưa đăng nhập hoặc sai vai trò
+  alt Chưa đăng nhập
+    API --> U : 401 UNAUTHENTICATED
+  else Sai vai trò
+    API --> U : 403 FORBIDDEN
+  end
+end
+API -> S : ResendSubmissionNotifications(id, currentUser)
+S -> R : GetById(id)
+R --> S : Bảng, hợp đồng, trạng thái và submissionNo / không tìm thấy
+break [E2] Không tìm thấy bảng
+  S --> API : NOT_FOUND
+  API --> U : 404 · Không tìm thấy bảng
+end
+S -> C : GetContract(sheet.contractId)
+C --> S : Phân công hợp đồng
+break [E2] NVKD không được phân công hợp đồng
+  S --> API : FORBIDDEN
+  API --> U : 403 · Từ chối gửi lại
+end
+break [E2] Bảng không ở PendingApproval
+  S --> API : INVALID_STATE
+  API --> U : 409 · Trạng thái không cho phép gửi lại
+end
+
+== SYS-US-02b · Tìm người nhận và gửi lại ==
+S -> NR : [3] GetSubmissionNotificationPlan(id, submissionNo)
+NR --> S : Vai trò đã lưu, danh sách người nhận và kết quả gửi
+alt Lần trình chưa có danh sách người nhận
+  S -> UD : ListByRole(requiredRole của lần trình)
+  UD --> S : Danh sách người nhận hiện tại
+  opt Đã tìm được người nhận
+    S -> NR : EnsureRecipients(id, submissionNo, recipients)
+    NR --> S : Danh sách đã lưu của lần trình hiện tại
+    note right of NR
+      Chỉ lập danh sách khi lần trình chưa có danh sách.
+      Mỗi người có một bản ghi theo khóa của lần trình.
+    end note
+  end
+else Lần trình đã có danh sách
+  S -> S : Dùng danh sách người nhận đã lưu
+end
+alt [A3.1] Tìm lại vẫn chưa có người nhận
+  S --> API : Chưa có người nhận
+  API --> U : 200 · Chưa có người nhận thông báo, có thể gửi lại sau
+else [A3] Có danh sách người nhận và tất cả đã nhận
+  S --> API : Đã gửi đủ
+  API --> U : 200 · Đã gửi đủ thông báo
+else Có người nhận chưa nhận được thông báo
+  loop Mỗi người chưa nhận thông báo của lần trình hiện tại
+    S -> N : NotifySubmission(key, recipient, content)
+    note right of N
+      Dùng lại khóa theo bảng, lần trình và người nhận.
+      Nếu khóa đã được gửi thành công, trả SENT.
+    end note
+    alt Gửi thành công
+      opt Đây là lần gửi thành công đầu tiên của khóa
+        N -> Approver : Thông báo trình duyệt trong hệ thống
+      end
+      N --> S : SENT
+    else Gửi lỗi
+      N --> S : FAILED
+    end
+    S -> NR : MarkNotification(key, result)
+  end
+  alt [A4] Vẫn còn thông báo gửi lỗi [4]
+    S --> API : Còn thông báo chưa gửi thành công
+    API --> U : 200 · Thông báo chưa gửi thành công, có thể gửi lại sau
+  else [4] Đã gửi đủ
+    S --> API : Đã gửi đủ
+    API --> U : 200 · Đã gửi đủ thông báo
+  end
+end
+note over U, S
+  SYS-US-02b chỉ cập nhật kết quả thông báo.
+  Thao tác gửi lại giữ trạng thái bảng, số lần trình và audit trình duyệt.
+end note
+@enduml

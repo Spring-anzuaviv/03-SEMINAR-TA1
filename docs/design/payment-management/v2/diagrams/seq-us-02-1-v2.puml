@@ -1,0 +1,189 @@
+@startuml seq-us-02-1-v2
+title Trình duyệt bảng thanh toán (SYS-US-02) – v2
+' Đầu vào: sys-us-02-v2.md, mục 1.1 SYS-US-02.
+' Phạm vi: TA-SPEC §2–3, §4.2–4.3, PAY-01..04, PAY-06, PAY-08 và §6 (NFR-PAY-01).
+' Mã bước, luồng thay thế A và ngoại lệ E theo từng UC. Bản SYS hiện không có bảng AC.
+' Trạng thái: Design Pending Approval. Mã lỗi, endpoint và tên phương thức là tên tạm.
+' [ĐỀ XUẤT KỸ THUẬT] Ghi có điều kiện, lưu người nhận và chống gửi trùng cần đồng bộ vào DD v2.
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+hide footbox
+autonumber
+
+actor "NVKD" as U
+boundary "PaymentController" as API
+control "PaymentService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\n<<read-only>>" as C
+participant "IPriceReader\n<<read-only>>" as P
+participant "IQuantityReader\n<<read-only>>" as Q
+participant "IUserDirectory\n<<read-only>>" as UD
+participant "IUnitOfWork" as TX
+participant "IAuditLog" as Audit
+participant "INotificationRepository" as NR
+participant "INotifier" as N
+actor "Người duyệt\nKTT / GĐKD" as Approver
+
+note over U, S
+  NVKD phải được phân công hợp đồng của bảng [OQ-US02-01].
+  Phương án thông báo trong v2 còn chờ xác nhận [OQ-US02-02].
+  Mỗi nhánh break kết thúc yêu cầu đang xử lý.
+end note
+
+
+== SYS-US-02 · Nhận yêu cầu và kiểm tra bảng ==
+U -> API : [1] POST /api/payment-sheets/{id}/submit\nKèm expectedVersion của bảng đang xem
+API -> API : [2] Kiểm tra đăng nhập và vai trò NVKD
+break [E2] Chưa đăng nhập hoặc sai vai trò
+  alt Chưa đăng nhập
+    API --> U : 401 UNAUTHENTICATED · Yêu cầu đăng nhập
+  else Sai vai trò
+    API --> U : 403 FORBIDDEN · Từ chối trình duyệt
+  end
+end
+API -> S : Submit(id, expectedVersion, currentUser)
+S -> R : [3] GetById(id)
+R --> S : Bảng, phiên bản, hợp đồng, dòng và tham chiếu nguồn / lỗi
+break [E3] Không tìm thấy hoặc lỗi đọc bảng
+  alt Không tìm thấy
+    S --> API : NOT_FOUND
+    API --> U : 404 · Không tìm thấy bảng
+  else Lỗi đọc bảng
+    S --> API : SOURCE_UNAVAILABLE
+    API --> U : 503 · Không đọc được bảng
+  end
+end
+S -> C : [4] GetContract(sheet.contractId)
+C --> S : Hợp đồng, phân công, trạng thái và dịch vụ / lỗi
+break [E6] Không đọc được hợp đồng
+  S --> API : SOURCE_UNAVAILABLE
+  API --> U : 503 · Không đọc được nguồn
+end
+break [E4] NVKD không được phân công hợp đồng
+  S --> API : FORBIDDEN
+  API --> U : 403 · Từ chối trình duyệt
+end
+S -> S : [5] Kiểm tra trạng thái bảng
+break [E5] Bảng đã PendingApproval
+  S --> API : DUPLICATE_SUBMIT
+  API --> U : 409 · Bảng đã trình duyệt, dùng lần trình hiện tại
+end
+break [E5.1] Bảng Approved hoặc Cancelled
+  S --> API : INVALID_STATE
+  API --> U : 409 · Trạng thái không cho phép trình
+end
+break [E5.2] Bảng Rejected
+  S --> API : INVALID_STATE
+  API --> U : 409 · Bấm “Chỉnh sửa” theo SYS-US-03b\nđể về Draft, sửa rồi trình lại
+  note over U, API
+    Cách mở lại bảng theo v2 [OQ-04, OQ-US03-07].
+  end note
+end
+
+== SYS-US-02 · Kiểm tra dữ liệu và xác định người duyệt ==
+S -> P : [6] GetPriceList(sheet.priceListId)
+P --> S : Trạng thái bảng giá / lỗi
+S -> Q : GetRecords(sheet.sourceRecordIds)
+Q --> S : Bản ghi sản lượng và trạng thái đối soát / lỗi
+S -> S : Kiểm tra hợp đồng và bảng giá còn Active\nKiểm tra sản lượng nguồn còn đối soát và không đổi
+break [E6] Nguồn không còn đạt hoặc lỗi đọc nguồn
+  alt Lỗi đọc nguồn
+    S --> API : SOURCE_UNAVAILABLE
+    API --> U : 503 · Báo lỗi đọc nguồn, giữ Draft
+  else Nguồn không còn đạt
+    S --> API : SOURCE_NOT_VALID + lý do
+    API --> U : 409 · Giữ Draft, tải lại nguồn hoặc hủy bảng
+  end
+end
+S -> S : [7] ValidateSubmission(sheet, contract.services)\nKiểm tra tổng tiền và dòng cho mọi dịch vụ trong hợp đồng
+note right of S
+  PAY-04 chặn tổng âm. Tổng 0 qua bước kiểm tra tiền.
+  Cách xác định dịch vụ bắt buộc theo v2 [OQ-05].
+end note
+break [E7] Tổng tiền âm
+  S --> API : NEGATIVE_TOTAL
+  API --> U : 400 · Báo tổng tiền âm, giữ Draft
+end
+break [E7.1] Thiếu dòng dịch vụ bắt buộc
+  S --> API : REQUIRED_SERVICE_MISSING + danh sách dịch vụ
+  API --> U : 400 · Báo tên dịch vụ còn thiếu, giữ Draft
+end
+S -> S : [8] sheet.RequiredApproverRole()\nDựa trên tổng tiền đã lưu gồm thuế GTGT
+note right of S
+  Theo SYS-US-02 v2, từ 500 triệu là GĐKD, dưới ngưỡng là KTT.
+  Đúng 500 triệu: Blocked by OQ-02, chờ xác nhận.
+  Cơ sở tổng và phạm vi người nhận theo [OQ-US03-03, OQ-US03-02].
+end note
+S -> UD : ListByRole(requiredRole)
+UD --> S : Danh sách người giữ vai trò duyệt
+
+== SYS-US-02 · Lưu lần trình và gửi thông báo ==
+group Giao dịch trình duyệt [9]
+  S -> TX : Begin()
+  TX --> S : Đã mở / lỗi mở giao dịch
+  opt Mở giao dịch thành công
+    S -> R : Transition(id, Draft → PendingApproval, expectedVersion)\nNếu còn Draft và khớp phiên bản, tăng phiên bản và số lần trình thêm 1
+    R --> S : Đã cập nhật / điều kiện không khớp / lỗi ghi
+    opt Cập nhật trạng thái thành công
+      S -> Audit : Append(submit, actorId, time, sheetId,\nDraft → PendingApproval, submissionNo)
+      Audit --> S : Đã ghi audit / lỗi ghi
+      opt Đã ghi audit
+        S -> NR : PrepareSubmission(sheetId, submissionNo, requiredRole,\nrecipients, nội dung thông báo)
+        NR --> S : Kết quả lưu dữ liệu lần trình
+        note right of NR
+          Lưu vai trò theo lần trình. Danh sách có thể rỗng ở A8.
+          SYS-US-02b dùng dữ liệu của chính lần trình này.
+        end note
+      end
+    end
+    opt Các thao tác ghi thành công
+      S -> TX : Commit()
+      TX --> S : Đã lưu / chắc chắn chưa lưu / chưa rõ kết quả
+    end
+    opt Điều kiện không khớp hoặc lỗi và chắc chắn chưa lưu
+      S -> TX : Rollback()
+    end
+  end
+end
+
+alt [E9] Bảng đã đổi trạng thái hoặc phiên bản
+  S --> API : CONCURRENT_MODIFICATION
+  API --> U : 409 · Đọc lại trạng thái và phiên bản trước khi thao tác tiếp
+else [E9.1] Chắc chắn chưa lưu thành công
+  S --> API : PERSISTENCE_ERROR
+  API --> U : 500 · Báo lỗi lưu
+else [E9.1] Chưa xác định được kết quả lưu
+  S --> API : RESULT_UNKNOWN
+  API --> U : 503 · Xem lại trạng thái bảng trước khi trình lại
+else Giao dịch đã lưu thành công
+  alt [A8] Chưa có người nhận sau khi lưu
+    S --> API : PendingApproval · Chưa có người nhận
+    API --> U : 200 · Đã trình duyệt, chưa có người nhận thông báo
+    note over U, API
+      NVKD có thể chọn “Gửi lại thông báo” để bắt đầu SYS-US-02b.
+    end note
+  else Đã có người nhận
+    loop [10] Mỗi người nhận của lần trình
+      S -> N : NotifySubmission(key, recipient, content)\nkey = (sheetId, submissionNo, recipientId)
+      alt Gửi thành công
+        N -> Approver : Thông báo trong hệ thống\nMã bảng, hợp đồng, kỳ và tổng tiền
+        N --> S : SENT
+      else Gửi lỗi
+        N --> S : FAILED
+      end
+      S -> NR : MarkNotification(key, result)
+    end
+    alt [A10] Gửi lỗi một phần hoặc toàn bộ
+      S --> API : PendingApproval · Còn thông báo gửi lỗi
+      API --> U : 200 · Đã trình duyệt, thông báo chưa gửi thành công
+      note over U, API
+        NVKD có thể chọn “Gửi lại thông báo” để bắt đầu SYS-US-02b.
+      end note
+    else [11] Đã gửi đủ
+      S --> API : PendingApproval · Đã gửi đủ
+      API --> U : 200 · Đã trình duyệt
+    end
+  end
+end
+@enduml

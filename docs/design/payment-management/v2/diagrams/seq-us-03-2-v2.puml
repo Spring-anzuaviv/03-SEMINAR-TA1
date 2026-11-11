@@ -88,7 +88,7 @@ else NVKD
               API --> K : 200 – mở biểu mẫu sửa bảng Draft [4]
               note right of K
                 Sửa theo SYS-US-01 (seq-us-01-v2);
-                sau khi sửa, NVKD trình lại theo SYS-US-02 (seq-us-02-v2).
+                sau khi sửa, NVKD trình lại theo SYS-US-02 (seq-us-02-1-v2).
               end note
             end
           end
