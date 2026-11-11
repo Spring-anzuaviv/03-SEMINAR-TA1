@@ -964,3 +964,45 @@ Prompt nguyên văn:
 ```text
 sequence đã có điều chỉnh, kiểm tra lại, nếu có lệch thì chỉnh thiết kế dữ liệu
 ```
+
+### P-39 – Đồng bộ 01 và 02 với thiết kế v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ / vai trò | 11/11/2026 · đại diện nhóm qua Codex / GPT-6 · design, naming-versioning, v2. |
+| Nguồn | System Spec v2, TA-SPEC §1–6, 03 từ `main`, các sequence US-02 đã tách, 05 và ERD tại `a4709f2`. |
+| Đầu ra | [01-requirements-summary-v2.md](../design/payment-management/v2/01-requirements-summary-v2.md) và [02-architecture-design-v2.md](../design/payment-management/v2/02-architecture-design-v2.md). |
+| Thay đổi | Đồng bộ ngày đầu/cuối kỳ và điều kiện dùng `payment_period_claims`. Đưa OQ-D-02/03 vào 01. Đồng bộ lưu và gửi thông báo theo lần trình, thứ tự hồ sơ và liên kết sequence. |
+| Kiểm chứng | Kiểm tra liên kết và đề mục, độ bao phủ 5 US/8 PAY/2 NFR, đối chiếu 03/05 và `git diff --check` đạt. Bộ kiểm tra workspace còn lỗi liên kết cũ và hậu tố sequence US-02/03/04. |
+| Phần AI / nhóm | Codex chỉnh 01/02. Nhóm cung cấp các phần v2 hiện hành và xác nhận trong chat. |
+
+Prompt nguyên văn:
+
+```text
+01 và 02 luôn tuân theo quy tắc của các phần còn lại. hãy edit lại 01 và 02
+```
+
+Xác nhận của đại diện nhóm trong chat ngày 11/11/2026:
+
+- Về quyền hủy, lý do bắt buộc và lập bảng mới cùng kỳ: “Đã chốt cả ba như SYS-US-05 v2”.
+- Về quy tắc tính thuế: “đã chốt cách tính thuế của US-01 dựa trên US-04”.
+- Về nguồn thuế suất và điểm làm tròn: “bạn đề xuất cho tôi phương án xử lí”.
+
+### P-40 – Tạo hợp đồng API v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ / vai trò | 11/11/2026 · đại diện nhóm qua Codex / GPT-6 · design, naming-versioning, v2. |
+| Nguồn | TA-SPEC §1–6, SYS-US-01..05 v2, tám sequence v2, tài liệu 01/02/03/05 cùng version, `src/Qtkd.Api/Program.cs` cho hiện trạng JSON. |
+| Đầu ra | [04-api-contract-v2.md](../design/payment-management/v2/04-api-contract-v2.md) và liên kết từ 02. |
+| Phần AI / nhóm | Codex soạn endpoint, DTO, quy tắc đồng thời/gửi lại, lỗi, ví dụ JSON và truy vết. Dùng route đã nêu trong sequence, đánh dấu lựa chọn mới như cấp `operationId` ở bước tính. Nhóm chưa duyệt hợp đồng. |
+| Kiểm chứng | Python kiểm tra liên kết/đề mục, 17 endpoint phân biệt, sáu route đã ghi trong sequence, mã lỗi chính và cú pháp ví dụ JSON. `git diff --check` đạt. Bộ kiểm tra workspace còn lỗi liên kết cũ và hậu tố sequence tách. |
+| Giới hạn | Design Pending Approval. Phần phụ thuộc OQ-01, OQ-02, OQ-03, OQ-D-02/03 và OQ-US03-03 theo nguồn v2. Chưa kiểm thử HTTP hoặc đo hiệu năng. |
+
+Prompt nguyên văn:
+
+```text
+Dựa trên pattern phiên bản v1, kết hợp những đề xuất và quyết định kĩ thuật của nhóm, hãy đề xuất api contract cho bản v2 và trình tôi duyệt.
+```
+
+
