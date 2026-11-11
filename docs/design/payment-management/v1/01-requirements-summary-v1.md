@@ -113,12 +113,6 @@ kế v1 vẽ cả hai phía, không coi đề xuất là quyết định.
 | OQ-US05-02 | Mơ hồ     | Lập lại sau hủy cùng kỳ                       | §4.5 ↔ PAY-01                     | `FindConflict`, khóa duy nhất                                            |
 | OQ-US05-03 | Thiếu     | Lý do hủy bắt buộc không                      | §4.5, §6                          | `CancelReason`, T4                                                       |
 
-### Open Questions mới do design phát hiện
-
-| ID      | Vị trí mọi nguồn                                                                                     | Loại  | Mô tả                                                                                                                                                                                        | Lý do cần xác nhận                                                         | Lựa chọn                                                                     | Ảnh hưởng                                                      | Trạng thái   | Người/ngày/trả lời                          |
-| ------- | ---------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------ | ------------------------------------------- |
-| OQ-D-01 | TA-SPEC §3 (chỉ "Draft có thể chuyển sang Cancelled"); §4.5; PAY-01 "một bảng cho mỗi tháng"; PAY-08 | Thiếu | Bảng đang `Rejected` mà không còn cần thiết thì xử lý thế nào? §3 không có `Rejected → Cancelled`. Nếu bảng đi qua Rejected (một phía của OQ-04), nó có tiếp tục chiếm kỳ theo PAY-01 không? | Có thể làm kỳ bị chiếm vĩnh viễn; ảnh hưởng state machine và khóa duy nhất | A: phải về Draft rồi hủy; B: cho hủy từ Rejected; C: Rejected không chiếm kỳ | State `Rejected` (không có lối ra đã xác nhận), `FindConflict` | Cần xác nhận | – (phụ thuộc OQ-04, OQ-US03-07, OQ-US05-02) |
-
 ## Kiểm chứng
 
 | Kiểm tra                     | Lệnh                                    | Kết quả                   |
