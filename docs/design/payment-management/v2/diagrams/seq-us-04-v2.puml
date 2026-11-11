@@ -1,0 +1,247 @@
+@startuml seq-us-04-v2
+title SYS-US-04 · Điều chỉnh bảng Approved bằng hồ sơ điều chỉnh (US-PAY-04) – v2
+' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-29
+' Đầu vào: docs/analysis/payment-management/v2/sys-us-04-v2.md (cùng version); TA-SPEC §1, §3, §4.3, §4.4, §5 PAY-03, PAY-05..07, §6; TA-PDF tr.1–3.
+' Căn cứ cải tiến: Báo cáo đánh giá nhóm 3 – bảng II.2 "Cách nhóm xử lý" (Nhóm đề xuất, chưa có xác nhận khách hàng)
+'   OQ-03 (chỉ giữ hồ sơ điều chỉnh riêng – bỏ phương án B), OQ-US04-01, OQ-US04-02, OQ-US03-03;
+'   OQ-US04-03 (mới, Cần xác nhận); R01-10, R01-16, R01-23.
+' Mục đích: A. KTT lập hồ sơ điều chỉnh; B. GĐKD duyệt (hoặc từ chối – giả định OQ-US04-03) hồ sơ. Bảng Approved KHÔNG bị sửa (PAY-05).
+' Phạm vi: US-PAY-04 | PAY-05, PAY-07 | NFR-PAY-01 áp dụng; NFR-PAY-02 không áp dụng. AC: AC-US04-01..15.
+' Nguồn: TA-SPEC §4.4, §5, §6; TA-PDF tr.2–3.
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: 11/11/2026 – PlantUML 1.2024.3 (jar của extension VS Code jebbs.plantuml 2.18.1) -checkonly và -tsvg thành công; SVG cùng tên.
+'
+' Đối chiếu SYS (sys-us-04-v2) <-> sequence:
+'   Phần A: bước 1-8; 2a, 3a, 4a, 5a, 7a, 7b | Phần B: B1-B6; B2a, B3a, B4a, B5a | Phần C: B7 (từ chối hồ sơ)
+'
+' Tên dùng tạm – cần đồng bộ vào 03/04/05/class-v2 (chưa tạo):
+'   PaymentAdjustmentService.Adjust(id, minutes, changes, currentUser) – chữ ký khớp request E12 (R01-10)
+'   ApproveAdjustment(id, adjustmentId, expectedVersion, currentUser); DeclineAdjustment(…, reason, …)
+'   IAdjustmentRepository.Create/GetById/Transition; ràng buộc tối đa một hồ sơ Pending mỗi bảng
+'   PaymentAdjustment, AdjustmentChange, AdjustmentStatus { Pending, Approved, Declined }
+'   E12 POST /api/payment-sheets/{id}/adjustments; E16 …/adjustments/{adjustmentId}/approve; E17 …/decline
+'   Mã lỗi mới: MINUTES_INVALID, ADJUSTMENT_INVALID, ADJUSTMENT_PENDING_EXISTS. Bỏ IPaymentRepository.UpdateApproved.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "Kế toán trưởng\n(KTT)" as KTT
+actor "Giám đốc kinh doanh\n(GĐKD)" as GD
+boundary "Màn hình điều chỉnh" as UI
+participant "PaymentController" as API
+control "PaymentAdjustmentService" as S
+participant "IPaymentRepository" as PR
+participant "IAdjustmentRepository" as AR
+participant "IAuditLog" as A
+participant "IUnitOfWork" as UOW
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over KTT, S #FFF4DB
+  [GIẢ ĐỊNH – Cần xác nhận] Áp dụng cách xử lý nhóm đề xuất (báo cáo đánh giá, bảng II.2).
+  OQ-03: bảng Approved giữ nguyên; điều chỉnh = hồ sơ riêng liên kết bảng gốc, kèm biên bản và nội dung thay đổi.
+  Số liệu hiệu lực = bảng gốc + các hồ sơ điều chỉnh ĐÃ DUYỆT.
+  OQ-US04-02: KTT lập nên không tự duyệt (PAY-07); mọi hồ sơ do GĐKD duyệt, kể cả tổng < 500 triệu hoặc đi qua ngưỡng.
+  OQ-US04-03 (Cần xác nhận): trạng thái hồ sơ Pending/Approved/Declined; tối đa một hồ sơ Pending mỗi bảng.
+end note
+
+== Phần A – KTT lập hồ sơ điều chỉnh (bước 1–8) ==
+KTT -> UI : Nhập biên bản (số, ngày lập, xác nhận hai bên), đính kèm file;\nnhập thay đổi + lý do từng thay đổi [1]
+UI -> API : POST /api/payment-sheets/{id}/adjustments (E12)\n{minutes{number, date, fileRef, confirmedByBothParties},\nchanges[{type: update|add|remove, lineId?, serviceId?, quantity?, unitPrice?, reason}]}
+alt chưa xác thực
+  API --> UI : 401 UNAUTHENTICATED [2a]
+else vai trò != KTT
+  API --> UI : 403 FORBIDDEN [2a]
+else KTT
+  API -> S : Adjust(id, minutes, changes, currentUser) [2]
+  activate S
+  S -> PR : GetById(id) [3]
+  PR --> S : sheet(status, lines, taxRate) / null / lỗi
+  S -> AR : ListApproved(id)
+  AR --> S : hồ sơ đã duyệt -> tính số liệu hiệu lực hiện tại
+  alt sheet = null / lỗi đọc
+    S --> API : NOT_FOUND / SOURCE_UNAVAILABLE
+    API --> UI : 404 / 503 [3a]
+  else status != Approved
+    S --> API : INVALID_STATE
+    API --> UI : 409 [3a]
+  else biên bản thiếu số / ngày lập / file / xác nhận hai bên (OQ-US04-01)
+    S --> API : MINUTES_INVALID + trường thiếu
+    API --> UI : 400 [4a]
+  else không có thay đổi / ngoài phạm vi / thiếu lý do / dòng không tồn tại / giá trị âm
+    S --> API : ADJUSTMENT_INVALID + thay đổi lỗi
+    API --> UI : 400 [5a]
+  else hợp lệ
+    S -> S : Áp thay đổi lên số liệu hiệu lực; mỗi dòng ceil(quantity × unitPrice);\nsubtotal, taxAmount = ceil(subtotal × sheet.taxRate), total (OQ-US03-03) [6]
+    group Transaction tạo hồ sơ – NFR-PAY-01 (DD-03) [7]
+      S -> UOW : Begin()
+      UOW --> S : beginResult
+      alt lỗi mở giao dịch
+        S --> API : PERSISTENCE_ERROR [7b]
+      else đã mở
+        S -> AR : Create(adjustment: sheetId, status=Pending, createdBy=KTT,\nminutes, changes(before/after, reason), proposedFigures)
+        AR -> DB : INSERT hồ sơ + thay đổi\nunique: một hồ sơ Pending cho mỗi bảng (OQ-US04-03)
+        DB --> AR : saveResult
+        AR --> S : saveResult
+        alt đã có hồ sơ Pending (kể cả yêu cầu đồng thời) – AC-US04-09
+          S -> UOW : Rollback()
+          S --> API : ADJUSTMENT_PENDING_EXISTS [7a]
+        else lỗi ghi
+          S -> UOW : Rollback()
+          S --> API : PERSISTENCE_ERROR [7b]
+        else ghi được
+          S -> A : Append(action=adjust, sheetId, adjustmentId, actorId, now,\nbefore=số liệu hiệu lực, after=số liệu đề xuất, minutesRef, changes)
+          A -> DB : INSERT audit (cùng giao dịch)
+          DB --> A : saved / error
+          A --> S : saved / error
+          alt lỗi audit
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR [7b]
+          else audit OK
+            S -> UOW : Commit()
+            UOW --> S : commitOutcome
+            alt committed
+              S --> API : created(adjustmentId, status=Pending, proposedFigures) [8]
+            else chắc chắn chưa commit
+              S --> API : PERSISTENCE_ERROR [7b]
+            else không rõ kết quả
+              S --> API : RESULT_UNKNOWN [7b]
+            end
+          end
+        end
+      end
+    end
+    note right of PR #E8F5E9
+      Không có lệnh ghi nào tới bảng gốc:
+      bảng giữ Approved và số liệu đã duyệt (PAY-05).
+    end note
+    API --> UI : 201 / 409 / 500 / 503
+  end
+  deactivate S
+end
+UI --> KTT : 201: "Hồ sơ chờ GĐKD duyệt – số liệu hiệu lực chưa thay đổi" [8]\n hoặc lỗi tương ứng
+
+== Phần B – GĐKD duyệt hồ sơ điều chỉnh (B1–B6) ==
+GD -> UI : Xem bảng gốc, biên bản, thay đổi, số liệu đề xuất;\nchọn "Duyệt hồ sơ" [B1]
+UI -> API : POST /api/payment-sheets/{id}/adjustments/{adjustmentId}/approve (E16)\n{expectedVersion}
+alt chưa xác thực
+  API --> UI : 401 [B2a]
+else vai trò != GĐKD (kể cả KTT)
+  API --> UI : 403 FORBIDDEN [B2a]
+else GĐKD
+  API -> S : ApproveAdjustment(id, adjustmentId, expectedVersion, currentUser) [B2]
+  activate S
+  S -> AR : GetById(adjustmentId) [B3]
+  AR --> S : adjustment(status, createdBy, version) / null
+  S -> PR : GetById(id)
+  PR --> S : sheet(status)
+  alt adjustment = null
+    S --> API : NOT_FOUND
+    API --> UI : 404 [B3a]
+  else adjustment.status != Pending hoặc sheet.status != Approved
+    S --> API : INVALID_STATE
+    API --> UI : 409 [B3a]
+  else người duyệt = người lập hồ sơ (PAY-07)
+    S --> API : SELF_APPROVAL_FORBIDDEN
+    API --> UI : 403 [B4a]
+  else hợp lệ
+    group Transaction duyệt hồ sơ – NFR-PAY-01 (DD-02, DD-03) [B5]
+      S -> UOW : Begin()
+      UOW --> S : beginResult
+      alt lỗi mở giao dịch
+        S --> API : PERSISTENCE_ERROR [B5a]
+      else đã mở
+        S -> AR : Transition(adjustmentId, Pending -> Approved, expectedVersion,\napprovedBy, approvedAt)
+        AR -> DB : UPDATE … WHERE status='Pending' AND version=:expectedVersion
+        DB --> AR : rowsAffected / lỗi
+        AR --> S : changed / conflict / error
+        alt conflict (0 dòng – hồ sơ vừa được xử lý)
+          S -> UOW : Rollback()
+          S --> API : CONCURRENT_MODIFICATION [B5a]
+        else lỗi ghi
+          S -> UOW : Rollback()
+          S --> API : PERSISTENCE_ERROR [B5a]
+        else changed
+          S -> A : Append(action=adjust, sheetId, adjustmentId, actorId=GĐKD, now,\nbefore=Pending + số liệu hiệu lực cũ, after=Approved + số liệu hiệu lực mới)
+          A -> DB : INSERT audit (cùng giao dịch)
+          DB --> A : saved / error
+          A --> S : saved / error
+          alt lỗi audit
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR [B5a]
+          else audit OK
+            S -> UOW : Commit()
+            UOW --> S : commitOutcome
+            alt committed
+              S --> API : adjustment(Approved), effectiveFigures [B6]
+            else chắc chắn chưa commit
+              S --> API : PERSISTENCE_ERROR [B5a]
+            else không rõ kết quả
+              S --> API : RESULT_UNKNOWN [B5a]
+            end
+          end
+        end
+      end
+    end
+    note right of S
+      Bảng gốc vẫn Approved, không đổi (PAY-05).
+      Kế toán (ngoài module) chỉ dùng số liệu hiệu lực mới sau bước này (OQ-US04-02, OQ-US03-06).
+    end note
+    API --> UI : 200 / 409 / 500 / 503
+  end
+  deactivate S
+end
+UI --> GD : Kết quả duyệt hồ sơ
+
+== Phần C – GĐKD từ chối hồ sơ (B7) – [GIẢ ĐỊNH – Cần xác nhận: OQ-US04-03] ==
+GD -> UI : Chọn "Từ chối hồ sơ", nhập lý do
+UI -> API : POST /api/payment-sheets/{id}/adjustments/{adjustmentId}/decline (E17)\n{expectedVersion, reason}
+alt chưa xác thực / không phải GĐKD
+  API --> UI : 401 / 403
+else GĐKD
+  API -> S : DeclineAdjustment(id, adjustmentId, reason, expectedVersion, currentUser)
+  activate S
+  S -> AR : GetById(adjustmentId)
+  AR --> S : adjustment / null
+  alt null / không Pending / người gọi = người lập hồ sơ
+    S --> API : NOT_FOUND / INVALID_STATE / SELF_APPROVAL_FORBIDDEN
+    API --> UI : 404 / 409 / 403
+  else reason rỗng
+    S --> API : REASON_REQUIRED
+    API --> UI : 400
+  else hợp lệ
+    group Transaction từ chối hồ sơ
+      S -> UOW : Begin()
+      S -> AR : Transition(adjustmentId, Pending -> Declined, expectedVersion, reason)
+      AR --> S : changed / conflict / error
+      alt changed
+        S -> A : Append(action=adjust, adjustmentId, actorId, now, before=Pending, after=Declined, reason)
+        A --> S : saved / error
+        alt saved
+          S -> UOW : Commit()
+          UOW --> S : commitOutcome
+          S --> API : adjustment(Declined) hoặc PERSISTENCE_ERROR / RESULT_UNKNOWN theo commitOutcome
+        else error
+          S -> UOW : Rollback()
+          S --> API : PERSISTENCE_ERROR
+        end
+      else conflict / error
+        S -> UOW : Rollback()
+        S --> API : CONCURRENT_MODIFICATION / PERSISTENCE_ERROR
+      end
+    end
+    API --> UI : 200 / 409 / 500 / 503
+    note right of S : Số liệu hiệu lực không đổi; KTT có thể lập hồ sơ mới.
+  end
+  deactivate S
+end
+UI --> GD : Kết quả từ chối hồ sơ
+
+legend bottom
+  [ĐẶC TẢ] §4.4 (KTT điều chỉnh khi có biên bản, ghi log), PAY-05, PAY-07, §6.
+  [GIẢ ĐỊNH – Cần xác nhận] OQ-03, OQ-US04-01, OQ-US04-02, OQ-US03-03 theo đề xuất nhóm; OQ-US04-03 là giả định tạm, chưa có đề xuất.
+  [ĐỀ XUẤT KỸ THUẬT] Hồ sơ + thay đổi + audit cùng giao dịch (DD-03); cập nhật có điều kiện + version (DD-02);
+  unique một hồ sơ Pending/bảng để xử lý đồng thời (AC-US04-09, R01-10). X1: mọi yêu cầu sửa trực tiếp bảng Approved -> 409 INVALID_STATE.
+endlegend
+@enduml

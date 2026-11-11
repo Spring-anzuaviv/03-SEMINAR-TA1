@@ -1,0 +1,141 @@
+@startuml seq-us-05-v2
+title Hủy bảng nháp (US-PAY-05) – v2
+' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-29
+' Đầu vào: docs/analysis/payment-management/v2/sys-us-05-v2.md (cùng version); TA-SPEC §1, §2, §3, §4.5, §5 PAY-01, PAY-05, §6; TA-PDF tr.1–3.
+' Căn cứ cải tiến: Báo cáo đánh giá nhóm 3 – bảng II.2 "Cách nhóm xử lý" (Nhóm đề xuất, chưa có xác nhận khách hàng)
+'   OQ-US05-01 (chỉ NVKD phụ trách hợp đồng), OQ-US05-02 (được lập lại cùng kỳ), OQ-US05-03 (lý do bắt buộc, ghi log),
+'   OQ-04/OQ-US03-07 (Rejected phải về Draft trước); R01-12, R01-14, R01-20, R01-21, R01-25.
+' Mục đích: chuyển bảng Draft -> Cancelled; bảng không dùng lại được.
+' Phạm vi: US-PAY-05 | NFR-PAY-01 áp dụng; NFR-PAY-02 không áp dụng. AC: AC-US05-01..12.
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: 11/11/2026 – PlantUML 1.2024.3 (jar của extension VS Code jebbs.plantuml 2.18.1) -checkonly và -tsvg thành công; SVG cùng tên.
+'
+' Đối chiếu SYS (sys-us-05-v2) <-> sequence:
+'   1 -> yêu cầu E13 | 2/A2 -> alt xác thực/vai trò | 3/A3 -> GetById | 4/A4 -> phân công
+'   5/A5 -> trạng thái | 6/A6 -> lý do | 7/A7/A7.1/A7.2 -> group Transaction + commitOutcome | 8 -> 200
+' R01-12: mỗi nhánh lỗi nằm trong alt/else nên dừng tại chỗ, không đi tiếp xuống bước xử lý; có 401 và nhánh kết quả commit.
+' Tên theo 03-v1 §1; E13 POST /api/payment-sheets/{id}/cancel – reason BẮT BUỘC (cần đồng bộ 04-v2).
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD\n(phụ trách hợp đồng)" as User
+participant "PaymentController" as API
+control "PaymentService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\n<<read-only>>" as C
+participant "IAuditLog" as A
+participant "IUnitOfWork" as UOW
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over User, S #FFF4DB
+  [GIẢ ĐỊNH – Cần xác nhận] Áp dụng cách xử lý nhóm đề xuất (báo cáo đánh giá, bảng II.2).
+  OQ-US05-01: chỉ NVKD phụ trách hợp đồng được hủy (không cần là người lập); KTT/GĐKD không được hủy.
+  OQ-US05-03: lý do hủy bắt buộc; lý do và hành động hủy ghi audit (lưu thêm cancelReason trên bảng: DD-12).
+end note
+
+User -> API : POST /api/payment-sheets/{id}/cancel (E13)\n{expectedVersion, reason} [1]
+activate API
+alt chưa xác thực
+  API --> User : 401 UNAUTHENTICATED [A2]
+else vai trò != NVKD (kể cả KTT, GĐKD)
+  API --> User : 403 FORBIDDEN [A2]
+else vai trò = NVKD [2]
+  API -> S : Cancel(id, reason, expectedVersion, currentUser)
+  activate S
+  S -> R : GetById(id) [3]
+  R -> DB : SELECT … FROM payment_sheets WHERE id = :id
+  DB --> R : row / null / lỗi
+  R --> S : sheet(status, version, contractId) / null / lỗi
+  alt sheet = null
+    S --> API : NOT_FOUND
+    API --> User : 404 [A3]
+  else lỗi đọc
+    S --> API : SOURCE_UNAVAILABLE
+    API --> User : 503 [A3]
+  else bảng tồn tại
+    S -> C : GetContract(sheet.contractId) [4]
+    C --> S : contract(assignees) / lỗi
+    alt lỗi đọc hợp đồng
+      S --> API : SOURCE_UNAVAILABLE
+      API --> User : 503 [A3]
+    else NVKD không được phân công hợp đồng (OQ-US05-01)
+      S --> API : FORBIDDEN
+      API --> User : 403 – bảng giữ nguyên [A4]
+    else status != Draft [5]
+      note right of S
+        PendingApproval, Approved, Rejected hoặc Cancelled.
+        Rejected: thông điệp hướng dẫn bấm "Chỉnh sửa" để về Draft trước
+        (seq-us-03-v2 Phần 3; OQ-04, OQ-US03-07; R01-21).
+      end note
+      S --> API : INVALID_STATE
+      API --> User : 409 [A5]
+    else reason rỗng hoặc chỉ khoảng trắng (OQ-US05-03) [6]
+      S --> API : REASON_REQUIRED
+      API --> User : 400 – bảng giữ Draft [A6]
+    else hợp lệ
+      group Transaction cancel – NFR-PAY-01 (DD-02, DD-03) [7]
+        S -> UOW : Begin()
+        UOW --> S : beginResult
+        alt lỗi mở giao dịch
+          S --> API : PERSISTENCE_ERROR
+          API --> User : 500 [A7.1]
+        else đã mở
+          S -> R : Transition(id, Draft -> Cancelled, expectedVersion, cancelReason = reason)
+          R -> DB : UPDATE payment_sheets\nSET status='Cancelled', cancel_reason=:reason, version=version+1\nWHERE id=:id AND status='Draft' AND version=:expectedVersion
+          DB --> R : rowsAffected / lỗi
+          R --> S : changed / conflict / error
+          alt conflict (0 dòng – bảng vừa được trình, sửa hoặc hủy)
+            S -> UOW : Rollback()
+            S --> API : CONCURRENT_MODIFICATION
+            API --> User : 409 – đọc lại bằng E6 [A7]
+          else lỗi ghi
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR
+            API --> User : 500 [A7.1]
+          else changed
+            S -> A : Append(action=cancel, id, actorId, now,\nbefore=Draft, after=Cancelled, reason)
+            A -> DB : INSERT audit_entries (cùng giao dịch)
+            DB --> A : saved / error
+            A --> S : saved / error
+            alt lỗi audit
+              S -> UOW : Rollback()
+              note right of S : Không lưu Cancelled khi chưa ghi được audit (NFR-PAY-01).
+              S --> API : PERSISTENCE_ERROR
+              API --> User : 500 – bảng giữ Draft [A7.1]
+            else audit OK
+              S -> UOW : Commit()
+              UOW --> S : commitOutcome
+              alt chắc chắn chưa commit
+                S --> API : PERSISTENCE_ERROR
+                API --> User : 500 – bảng giữ Draft [A7.1]
+              else không rõ kết quả
+                S --> API : RESULT_UNKNOWN
+                API --> User : 503 – chưa kết luận; đọc lại bằng E6 trước khi gửi lại [A7.2]
+              else committed
+                S --> API : PaymentSheetDto {id, status=Cancelled, version, cancelReason}
+                API --> User : 200 OK – hủy thành công [8]
+                note right of S
+                  Cancelled: không sửa, trình, duyệt, từ chối, reopen, điều chỉnh (TA-SPEC §4.5; AC-US05-02).
+                  Kỳ được giải phóng: NVKD được lập bảng mới cho cùng kỳ; kiểm tra trùng
+                  ở seq-us-01-v2 chỉ xét bảng khác Cancelled (OQ-US05-02).
+                end note
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  deactivate S
+end
+deactivate API
+
+legend bottom
+  [ĐẶC TẢ] Draft -> Cancelled, không dùng lại (TA-SPEC §3, §4.5); audit (§6).
+  [GIẢ ĐỊNH – Cần xác nhận] OQ-US05-01, OQ-US05-02, OQ-US05-03, OQ-04, OQ-US03-07 – theo đề xuất nhóm.
+  [ĐỀ XUẤT KỸ THUẬT] Cập nhật có điều kiện + version (DD-02, DD-08), audit cùng giao dịch (DD-03), cancelReason trên bảng (DD-12).
+endlegend
+@enduml

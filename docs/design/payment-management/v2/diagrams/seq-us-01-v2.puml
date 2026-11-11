@@ -1,0 +1,366 @@
+@startuml seq-us-01-v2
+title Lập bảng thanh toán và sửa Draft (US-PAY-01) – v2
+' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-29
+' Đầu vào: docs/analysis/payment-management/v2/sys-us-01-v2.md (cùng version); TA-SPEC §1–6.
+' Căn cứ cải tiến: Báo cáo đánh giá nhóm 3 – bảng II.2 "Cách nhóm xử lý" (Nhóm đề xuất, chưa có xác nhận khách hàng)
+'   OQ-01, OQ-US01-01..07, OQ-US05-02, OQ-US03-01, OQ-US03-03, OQ-04, OQ-US03-07; R01-02, R01-03, R01-08, R01-14, R01-27.
+' Mục đích: mở form -> chọn hợp đồng -> chọn kỳ -> hệ thống tự lấy bảng giá Active -> xem trước -> lưu Draft; sửa Draft.
+' Phạm vi: create, update (Draft); PAY-01..03; NFR-PAY-01; NFR-PAY-02 (chưa đo).
+' Trạng thái: Bản sau review – Design Pending Approval
+' Kết xuất: 11/11/2026 – PlantUML 1.2024.3 (jar của extension VS Code jebbs.plantuml 2.18.1) -checkonly và -tsvg thành công; SVG cùng tên.
+'
+' Đối chiếu SYS (sys-us-01-v2 §1.3–1.5) <-> sequence:
+'   1-3/A2/A3: Phần 1 | 4-5/A5: Phần 2 | 6-7/A7: Phần 3 | 8-9/A8: Phần 3 (preview)
+'   A10: nhánh SOURCE_UNAVAILABLE ở mỗi lần đọc nguồn | A10.1/A10.2: note UI
+'   10-13/A11.1/A11.2/A12/A12.1/A12.2: Phần 4 | U1-U6/AU1-AU5.1: Phần 5
+'
+' Tên dùng tạm – cần đồng bộ vào 03-detailed-design-v2 / 04-api-contract-v2 (chưa tạo):
+'   E3 GET /api/payment-sheets/form/contracts/{contractId}/period-check?period= (thay danh sách bảng giá của v1)
+'   E4 POST /api/payment-sheets/preview {contractId, period}  (bỏ priceListId – R01-03)
+'   E5 POST /api/payment-sheets {contractId, period, note, calculationContext}
+'   E8 PUT /api/payment-sheets/{id} {expectedVersion, note, reloadSource, calculationContext?}
+'   IContractReader.ListAssigned/GetContract; IPriceReader.GetActiveForContract; IQuantityReader.GetQuantities
+'   IPaymentRepository.FindOverlap(contractId, periodRange, excludeCancelled); ListPeriodsCovered(contractId, excludeCancelled)
+'   Mã lỗi mới: QUANTITY_EMPTY, SOURCE_CHANGED, FIELD_NOT_EDITABLE
+' Quy tắc mã lỗi đồng thời (R01-14): trạng thái không cho phép -> INVALID_STATE;
+'   cập nhật có điều kiện 0 dòng -> CONCURRENT_MODIFICATION; vi phạm không chồng lấn kỳ -> PAYMENT_EXISTS.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD\n(phụ trách hợp đồng)" as U
+boundary "PaymentForm" as UI
+participant "PaymentController" as API
+control "PaymentService" as S
+participant "IContractReader\n<<read-only>>" as C
+participant "IPriceReader\n<<read-only>>" as P
+participant "IQuantityReader\n<<read-only>>" as Q
+participant "IPaymentRepository" as R
+participant "IAuditLog" as A
+participant "IUnitOfWork" as UOW
+database "PaymentDatabase\n<<đề xuất>>" as DB
+
+note over U, S #FFF4DB
+  [GIẢ ĐỊNH – Cần xác nhận] Áp dụng cách xử lý nhóm đề xuất (báo cáo đánh giá, bảng II.2).
+  NVKD KHÔNG chọn bảng giá: hệ thống tự lấy bảng giá Active gắn với hợp đồng (OQ-US01-01, R01-03).
+  Quyền theo phân công hợp đồng (OQ-US01-03). Active tại thời điểm lập (OQ-US01-05).
+  Kỳ theo cấu hình tháng/quý, chống chồng lấn khoảng ngày với bảng chưa hủy (OQ-01, OQ-US05-02).
+end note
+
+note over API, S
+  Mọi request: kiểm tra phiên và vai trò NVKD phía server trước khi đọc dữ liệu.
+  Chưa xác thực -> 401 UNAUTHENTICATED; không phải NVKD -> 403 FORBIDDEN [A2/AU2].
+  Lỗi đọc module nguồn -> 503 SOURCE_UNAVAILABLE, không coi là "không có dữ liệu" [A10].
+end note
+
+alt NVKD lập bảng mới
+
+  == Phần 1 – Mở biểu mẫu (bước 1–3) ==
+  U -> UI : Bấm "Lập bảng thanh toán" [1]
+  UI -> API : GET /api/payment-sheets/form/contracts (E1)
+  alt chưa xác thực
+    API --> UI : 401 UNAUTHENTICATED [A2]
+    UI --> U : Yêu cầu đăng nhập
+  else vai trò != NVKD
+    API --> UI : 403 FORBIDDEN [A2]
+    UI --> U : Không được phép
+  else vai trò = NVKD
+    API -> S : OpenCreateForm(currentUser)
+    S -> C : ListAssigned(currentUser) [2]
+    C --> S : contracts / lỗi
+    alt lỗi đọc
+      S --> API : SOURCE_UNAVAILABLE
+      API --> UI : 503 [A3]
+      UI --> U : Báo lỗi, cho thử lại
+    else đọc được
+      S --> API : contracts (được phân công)
+      API --> UI : 200 contracts
+      UI --> U : Hiện biểu mẫu + danh sách hợp đồng [3]\nRỗng: "Chưa có hợp đồng được phân công" [A3]
+    end
+  end
+
+  == Phần 2 – Chọn hợp đồng (bước 4–5) ==
+  U -> UI : Chọn hợp đồng [4]
+  UI -> UI : Xóa kỳ và kết quả xem trước cũ [A10.1]
+  UI -> API : GET /api/payment-sheets/form/contracts/{contractId} (E2)
+  API -> S : SelectContract(contractId, currentUser)
+  S -> C : GetContract(contractId)
+  C --> S : contract (status, assignees, periodType, endDate) / null / lỗi
+  S -> R : ListPeriodsCovered(contractId, excludeCancelled)
+  R --> S : các khoảng ngày đã có bảng chưa hủy
+  S -> S : Kiểm tra tồn tại, phân công, Active tại thời điểm lập [5]\nTính kỳ còn trống; cảnh báo kỳ chưa lập trước endDate
+  alt contract = null
+    S --> API : NOT_FOUND
+    API --> UI : 404 [A5]
+  else NVKD không được phân công
+    S --> API : FORBIDDEN
+    API --> UI : 403 [A5]
+  else không Active (kể cả đã hết hiệu lực)
+    S --> API : CONTRACT_NOT_ACTIVE
+    API --> UI : 409 – không lập bù [A5]
+  else lỗi đọc nguồn
+    S --> API : SOURCE_UNAVAILABLE
+    API --> UI : 503 [A10]
+  else hợp lệ
+    S --> API : contract, periodConfig(tháng|quý), openPeriods, expiryWarnings
+    API --> UI : 200
+    UI --> U : Hiện thông tin hợp đồng, vùng chọn kỳ\nvà cảnh báo các kỳ chưa lập trước ngày hết hạn [5]
+  end
+  note right of UI : Lỗi: báo tại form, quay bước 4.
+
+  == Phần 3 – Chọn kỳ, hệ thống tự lấy bảng giá và xem trước (bước 6–9) ==
+  U -> UI : Chọn kỳ theo cấu hình hợp đồng [6]
+  UI -> UI : Xóa kết quả xem trước cũ [A10.1]
+  UI -> API : GET …/form/contracts/{contractId}/period-check?period= (E3)
+  API -> S : SelectPeriod(contractId, period, currentUser)
+  S -> S : Kiểm tra kỳ đúng cấu hình; quy đổi periodRange [7]
+  S -> R : FindOverlap(contractId, periodRange, excludeCancelled=true) [7]
+  R --> S : overlap / none / lỗi
+  S -> P : GetActiveForContract(contractId) [7]
+  P --> S : priceLists Active (0..n) / lỗi
+  alt kỳ sai cấu hình
+    S --> API : INVALID_PERIOD
+    API --> UI : 400 [A7]
+  else chồng lấn bảng chưa hủy (vd. đã có tháng 1 -> không lập quý I)
+    S --> API : PAYMENT_EXISTS
+    API --> UI : 409 [A7]
+  else không có hoặc có > 1 bảng giá Active
+    S --> API : PRICE_NOT_SUITABLE
+    API --> UI : 409 – không cho lập [A7]
+  else lỗi đọc nguồn
+    S --> API : SOURCE_UNAVAILABLE
+    API --> UI : 503 [A10]
+  else hợp lệ, đúng 1 bảng giá Active
+    S --> API : periodRange, priceList (chỉ đọc)
+    API --> UI : 200
+    UI -> API : POST /api/payment-sheets/preview (E4)\n{contractId, period}
+    API -> S : Preview(contractId, period, currentUser)
+    S -> S : Kiểm tra lại quyền, Active, chồng lấn, bảng giá (như bước 5, 7)
+    S -> Q : GetQuantities(contractId, periodRange) [8]
+    Q --> S : bản ghi sản lượng (serviceId, qty, reconciled) / lỗi
+    alt không có bản ghi
+      S --> API : QUANTITY_EMPTY
+      API --> UI : 409 – không coi thiếu là 0 [A8]
+    else còn bản ghi chưa đối soát
+      S --> API : QUANTITY_NOT_RECONCILED
+      API --> UI : 409 [A8]
+    else dịch vụ có sản lượng nhưng thiếu đơn giá trong bảng giá Active
+      S --> API : PRICE_NOT_SUITABLE
+      API --> UI : 409 [A8]
+    else lỗi đọc nguồn
+      S --> API : SOURCE_UNAVAILABLE
+      API --> UI : 503 [A10]
+    else đủ dữ liệu, tất cả Đã đối soát
+      loop mỗi dịch vụ trong kỳ (OQ-US01-04)
+        S -> S : quantity = Σ qty các bản ghi; giữ danh sách sourceRecordIds
+        S -> S : lineAmount = ceil(quantity × unitPrice) (PAY-03; OQ-US03-03)
+      end
+      S -> S : subtotal = Σ lineAmount\ntaxAmount = ceil(subtotal × taxRate) – taxRate cấu hình, mặc định 10%\ntotal = subtotal + taxAmount (OQ-US03-03, R01-02)
+      S -> S : calculationContext = {priceListId, priceListVersion,\nunitPrices, sourceRecordIds, taxRate}
+      S --> API : preview(lines, subtotal, taxRate, taxAmount, total, calculationContext)
+      API --> UI : 200 – chưa lưu
+      UI --> U : Hiện dòng, bảng giá đã dùng (chỉ đọc), tạm tính, thuế, tổng [9]
+    end
+  end
+  note right of UI
+    A10.1: đổi hợp đồng/kỳ -> xóa kết quả phụ thuộc, gọi lại E2/E3/E4;
+    phản hồi của lựa chọn cũ đến muộn bị bỏ qua.
+    A10.2: đóng form trước khi lưu -> không gọi create/cancel, không audit.
+  end note
+
+  == Phần 4 – Lưu nháp (bước 10–13) ==
+  U -> UI : Nhập ghi chú (tùy chọn), bấm "Lưu nháp" [10]
+  UI -> API : POST /api/payment-sheets (E5)\n{contractId, period, note, calculationContext}
+  API -> S : Create(request, currentUser)
+  S -> C : GetContract(contractId)
+  C --> S : contract / lỗi
+  S -> R : FindOverlap(contractId, periodRange, excludeCancelled=true)
+  R --> S : overlap / none / lỗi
+  S -> P : GetActiveForContract(contractId)
+  P --> S : priceList / lỗi
+  S -> Q : GetQuantities(contractId, periodRange)
+  Q --> S : bản ghi sản lượng / lỗi
+  S -> S : Kiểm tra lại PAY-01..03; tính lại theo giá tại thời điểm lưu [11]\nSo sánh với calculationContext (OQ-US01-01, OQ-US01-07)
+  alt điều kiện không còn đạt
+    S --> API : FORBIDDEN / CONTRACT_NOT_ACTIVE / PAYMENT_EXISTS /\nPRICE_NOT_SUITABLE / QUANTITY_EMPTY / QUANTITY_NOT_RECONCILED
+    API --> UI : 403 / 409 [A11.1]
+    UI --> U : Giữ form, báo lý do; không ghi bảng
+  else lỗi đọc nguồn
+    S --> API : SOURCE_UNAVAILABLE
+    API --> UI : 503 [A10]
+  else giá hoặc bản ghi nguồn đã đổi so với lúc xem trước
+    S --> API : SOURCE_CHANGED + preview mới
+    API --> UI : 409 [A11.2]
+    UI --> U : "Dữ liệu nguồn đã thay đổi" – hiện kết quả tính mới,\nNVKD xem lại và bấm Lưu nháp lần nữa (quay bước 9)
+  else hợp lệ, khớp calculationContext
+    group Transaction create – bảng, dòng, nguồn dòng và audit [12] (DD-02, DD-03)
+      S -> UOW : Begin()
+      UOW --> S : beginResult
+      alt lỗi mở giao dịch
+        S --> API : PERSISTENCE_ERROR [A12.1]
+      else đã mở
+        S -> R : Create(candidate: status=Draft, createdBy=currentUser,\ncontract, periodRange, priceListId, lines + sourceRecordIds,\nsubtotal, taxRate, taxAmount, total, note, version=1)
+        R -> DB : INSERT bảng, dòng, liên kết dòng–bản ghi nguồn\nràng buộc không chồng lấn kỳ (loại trừ Cancelled)
+        DB --> R : saveResult
+        R --> S : saveResult
+        alt vi phạm ràng buộc kỳ (yêu cầu khác vừa lưu)
+          S -> UOW : Rollback()
+          S --> API : PAYMENT_EXISTS [A12]
+        else lỗi ghi
+          S -> UOW : Rollback()
+          S --> API : PERSISTENCE_ERROR [A12.1]
+        else ghi được
+          S -> A : Append(action=create, actorId, now,\nbefore=chưa có bảng, after=candidate)
+          A -> DB : INSERT audit (cùng giao dịch)
+          DB --> A : auditResult
+          A --> S : auditResult
+          alt lỗi audit
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR [A12.1]
+          else audit OK
+            S -> UOW : Commit()
+            UOW --> S : commitOutcome
+            alt committed
+              S --> API : created(id, status=Draft, version, lines, total) [13]
+            else chắc chắn chưa commit
+              S -> UOW : Rollback() nếu còn mở
+              S --> API : PERSISTENCE_ERROR [A12.1]
+            else không rõ kết quả
+              S --> API : RESULT_UNKNOWN [A12.2]
+            end
+          end
+        end
+      end
+    end
+    API --> UI : 201 / 409 / 500 / 503
+    alt 201 created
+      UI --> U : Hiện bảng Draft, id, version [13]
+    else 409 PAYMENT_EXISTS
+      UI --> U : Kỳ vừa bị chiếm; giữ form [A12]
+    else 500 PERSISTENCE_ERROR
+      UI --> U : Lưu thất bại, không lưu một phần [A12.1]
+    else 503 RESULT_UNKNOWN
+      UI --> U : Chưa xác định kết quả; kiểm tra bằng E7\n(GET /api/payment-sheets?contractId=&period=) trước khi lưu lại [A12.2]
+    end
+  end
+  note over S, DB #FFF4DB
+    NFR-PAY-02 (OQ-US01-06): đo từ lúc server nhận E5 đến khi trả kết quả đã lưu;
+    đếm dòng sau gộp; môi trường nhóm, hợp đồng 199 dòng; đạt khi <= 3 giây. CHƯA ĐO.
+  end note
+
+else NVKD sửa bảng đã lưu
+
+  == Phần 5 – Sửa Draft (U1–U6) ==
+  U -> UI : Mở bảng, bấm "Chỉnh sửa" [U1]
+  opt bảng đang Rejected (OQ-04, OQ-US03-07)
+    ref over U, S, R, A : seq-us-03-v2 Phần 3 – reopen: Rejected -> Draft, có audit (E14)
+  end
+  UI -> API : GET /api/payment-sheets/{id} (E6)
+  API -> S : OpenDraft(id, currentUser)
+  S -> R : GetById(id)
+  R --> S : sheet(status, version, contractId, lines, note) / null / lỗi
+  S -> S : Kiểm tra phân công hợp đồng (không cần là người lập)\nvà status = Draft [U2] (OQ-US01-03)
+  alt sheet = null / lỗi đọc
+    S --> API : NOT_FOUND / SOURCE_UNAVAILABLE
+    API --> UI : 404 / 503 [AU1]
+  else không được phân công
+    S --> API : FORBIDDEN
+    API --> UI : 403 [AU2]
+  else status != Draft
+    S --> API : INVALID_STATE
+    API --> UI : 409 [AU2] (Approved: điều chỉnh qua US-PAY-04)
+  else hợp lệ
+    S --> API : sheet(Draft, version)
+    API --> UI : 200
+    UI --> U : Form sửa: sản lượng, đơn giá, thành tiền, hợp đồng, kỳ CHỈ ĐỌC;\nô ghi chú; nút "Tải lại dữ liệu nguồn" [U2] (OQ-US01-02)
+
+    U -> UI : Sửa ghi chú [U3]
+    opt NVKD bấm "Tải lại dữ liệu nguồn" [U3]
+      UI -> API : POST /api/payment-sheets/preview (E4)\n{contractId, period, excludeSheetId=id}
+      API -> S : Preview(...)
+      S -> S : Đọc lại hợp đồng, bảng giá Active, sản lượng;\nkiểm tra PAY-01..03 (bỏ qua chính bảng khi tra chồng lấn);\ntính lại toàn bộ dòng/tổng
+      alt nguồn không đạt
+        S --> API : CONTRACT_NOT_ACTIVE / PRICE_NOT_SUITABLE /\nQUANTITY_EMPTY / QUANTITY_NOT_RECONCILED / SOURCE_UNAVAILABLE
+        API --> UI : 409 / 503 [AU3]
+        UI --> U : Báo lý do; dữ liệu đã lưu giữ nguyên
+      else đạt
+        S --> API : preview mới + calculationContext
+        API --> UI : 200
+        UI --> U : Hiện số liệu tính lại (chưa lưu)
+      end
+    end
+
+    U -> UI : Bấm "Lưu thay đổi" [U4]
+    UI -> API : PUT /api/payment-sheets/{id} (E8)\n{expectedVersion, note, reloadSource, calculationContext?}
+    API -> S : Update(id, request, currentUser)
+    S -> R : GetById(id)
+    R --> S : currentSheet / null / lỗi
+    S -> S : Kiểm tra phân công, Draft, có expectedVersion,\nkhông có trường khóa trong request [U4]
+    opt reloadSource = true
+      S -> S : Đọc lại nguồn, kiểm tra PAY-01..03, tính lại;\nso với calculationContext (OQ-US01-01)
+    end
+    alt thiếu version / gửi trường khóa
+      S --> API : VERSION_REQUIRED / FIELD_NOT_EDITABLE
+      API --> UI : 400 [AU4]
+    else không tồn tại / không phân công / không Draft
+      S --> API : NOT_FOUND / FORBIDDEN / INVALID_STATE
+      API --> UI : 404 / 403 / 409 [AU1/AU2]
+    else nguồn không đạt khi tải lại
+      S --> API : mã lỗi như AU3
+      API --> UI : 409 / 503 [AU3]
+    else nguồn đổi sau lần tải lại
+      S --> API : SOURCE_CHANGED + preview mới
+      API --> UI : 409 [AU4.2]
+    else hợp lệ
+      group Transaction update – Draft giữ nguyên, lưu candidate và audit [U5]
+        S -> UOW : Begin()
+        UOW --> S : beginResult
+        alt lỗi mở giao dịch
+          S --> API : PERSISTENCE_ERROR [AU5.1]
+        else đã mở
+          S -> R : Update(candidate: note [+ lines, total nếu reloadSource],\nexpectedStatus=Draft, expectedVersion)
+          R -> DB : UPDATE … WHERE status='Draft' AND version=:expectedVersion;\nversion = version + 1
+          DB --> R : rowsAffected / lỗi
+          R --> S : writeResult
+          alt rowsAffected = 0
+            S -> UOW : Rollback()
+            S --> API : CONCURRENT_MODIFICATION [AU5]
+          else lỗi ghi
+            S -> UOW : Rollback()
+            S --> API : PERSISTENCE_ERROR [AU5.1]
+          else ghi được
+            S -> A : Append(action=update, actorId, now,\nbefore=currentSheet, after=candidate)
+            A -> DB : INSERT audit (cùng giao dịch)
+            DB --> A : auditResult
+            A --> S : auditResult
+            alt lỗi audit
+              S -> UOW : Rollback()
+              S --> API : PERSISTENCE_ERROR [AU5.1]
+            else audit OK
+              S -> UOW : Commit()
+              UOW --> S : commitOutcome
+              alt committed
+                S --> API : updated(candidate, Draft, newVersion) [U6]
+              else chắc chắn chưa commit
+                S --> API : PERSISTENCE_ERROR [AU5.1]
+              else không rõ kết quả
+                S --> API : RESULT_UNKNOWN [AU5.1]
+              end
+            end
+          end
+        end
+      end
+    end
+    API --> UI : 200 / 400 / 403 / 404 / 409 / 500 / 503
+    UI --> U : Hiện Draft + version mới, hoặc lỗi tương ứng [U6/AU*]\n409 CONCURRENT_MODIFICATION: tải lại bằng E6
+  end
+end
+
+legend bottom
+  [ĐẶC TẢ] NVKD, nguồn chỉ đọc, Draft, PAY-01..03, audit: TA-SPEC §1, §2, §4.1, §5, §6.
+  [GIẢ ĐỊNH – Cần xác nhận] Cách xử lý nhóm đề xuất: OQ-01, OQ-US01-01..07, OQ-US05-02, OQ-US03-01, OQ-US03-03, OQ-04, OQ-US03-07.
+  [ĐỀ XUẤT KỸ THUẬT] Form, xem trước, calculationContext, version, transaction, HTTP/mã lỗi (DD-02, DD-03, DD-08).
+endlegend
+@enduml
