@@ -6,7 +6,7 @@ title Hủy bảng nháp (US-PAY-05) – v2
 '   OQ-US05-01 (chỉ NVKD phụ trách hợp đồng), OQ-US05-02 (được lập lại cùng kỳ), OQ-US05-03 (lý do bắt buộc, ghi log),
 '   OQ-04/OQ-US03-07 (Rejected phải về Draft trước); R01-12, R01-14, R01-20, R01-21, R01-25.
 ' Mục đích: chuyển bảng Draft -> Cancelled; bảng không dùng lại được.
-' Phạm vi: US-PAY-05 | NFR-PAY-01 áp dụng; NFR-PAY-02 không áp dụng. AC: AC-US05-01..12.
+' Phạm vi: US-PAY-05 | NFR-PAY-01 áp dụng; NFR-PAY-02 không áp dụng.
 ' Trạng thái: Bản sau review – Design Pending Approval
 ' Kết xuất: 11/11/2026 – PlantUML 1.2024.3 (jar của extension VS Code jebbs.plantuml 2.18.1) -checkonly và -tsvg thành công; SVG cùng tên.
 '
@@ -118,7 +118,7 @@ else vai trò = NVKD [2]
                 S --> API : PaymentSheetDto {id, status=Cancelled, version, cancelReason}
                 API --> User : 200 OK – hủy thành công [8]
                 note right of S
-                  Cancelled: không sửa, trình, duyệt, từ chối, reopen, điều chỉnh (TA-SPEC §4.5; AC-US05-02).
+                  Cancelled: không sửa, trình, duyệt, từ chối, reopen, điều chỉnh (TA-SPEC §4.5).
                   Kỳ được giải phóng: NVKD được lập bảng mới cho cùng kỳ; kiểm tra trùng
                   ở seq-us-01-v2 chỉ xét bảng khác Cancelled (OQ-US05-02).
                 end note
