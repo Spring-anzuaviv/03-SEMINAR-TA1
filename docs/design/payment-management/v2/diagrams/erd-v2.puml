@@ -1,0 +1,190 @@
+@startuml erd-v2
+title ERD (mô hình dữ liệu) – Bảng thanh toán, dùng chung US-PAY-01..05 – v2
+' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (gồm seq-us-02-1/02-2-v2), 03-detailed-design-v2.md, 05-data-design-v2.md | Prompt: P-37, P-38
+' Mục đích: bảng, cột chính, khóa và quan hệ của toàn module. Đây là ERD, không phải UML class diagram.
+' Phạm vi: US-PAY-01..05 (SYS-US-01, 02, 02b, 03, 03b, 04, 04b, 05); PAY-01..08; NFR-PAY-01
+' OQ: OQ-01, OQ-D-02 (claim kỳ); OQ-03, OQ-US04-01/02 (hồ sơ điều chỉnh); OQ-US03-03 (tiền)
+' Chưa có class-v2.puml / 04-api-contract-v2.md: tên là tên dùng tạm theo sequence v2.
+' Trạng thái: Bản sau review – Design Pending Approval
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+hide circle
+skinparam linetype ortho
+
+entity "payment_sheets" as S {
+  * id : UUID <<PK>>
+  --
+  * code : VARCHAR(30) <<UNIQUE>>
+  * create_operation_id : UUID <<UNIQUE>>
+  * contract_id : INT <<ref Hợp đồng>>
+  * period_type : VARCHAR(10) <<Month|Quarter>>
+  * period_start : DATE
+  * period_end : DATE
+  * price_list_id : VARCHAR(50) <<ref Bảng giá>>
+  price_list_version : VARCHAR(50)
+  * status : VARCHAR(20) <<CHECK 5 giá trị §3>>
+  * subtotal_amount : DECIMAL(19,4)
+  * tax_rate : DECIMAL(5,4)
+  * tax_amount : DECIMAL(19,4)
+  * total_amount : DECIMAL(19,4) <<CHECK ≥ 0>>
+  note : TEXT
+  * calculated_at : TIMESTAMPTZ
+  * created_by : VARCHAR(50)
+  * created_at : TIMESTAMPTZ
+  updated_by / updated_at
+  * submission_no : INT <<lần trình hiện tại>>
+  decided_by / decided_at
+  rejection_reason : TEXT
+  cancel_reason : TEXT
+  cancelled_by / cancelled_at
+  * version : INT
+}
+
+entity "payment_lines" as L {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  * line_no : INT
+  * service_code : VARCHAR(50) <<UNIQUE theo bảng>>
+  service_name : VARCHAR(200)
+  * quantity : DECIMAL(19,4)
+  * unit_price : DECIMAL(19,4)
+  price_item_ref : VARCHAR(100)
+  * line_amount : DECIMAL(19,4)
+}
+
+entity "payment_line_sources" as LS {
+  * payment_line_id : UUID <<PK, FK>>
+  * quantity_record_id : VARCHAR(100) <<PK, ref Sản lượng>>
+  --
+  * quantity : DECIMAL(19,4)
+  source_version : VARCHAR(100)
+}
+
+entity "payment_period_claims\n<<Blocked by OQ-01, OQ-D-02>>" as C #FFF4DB {
+  * contract_id : INT <<PK>>
+  * month_start : DATE <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+}
+
+entity "payment_submissions" as SB {
+  * payment_sheet_id : UUID <<PK, FK>>
+  * submission_no : INT <<PK>>
+  --
+  * required_role : VARCHAR(10) <<KTT|GDKD>>
+  * content_json : JSON
+  * submitted_by : VARCHAR(50)
+  * submitted_at : TIMESTAMPTZ
+  recipients_resolved_at : TIMESTAMPTZ
+}
+
+entity "payment_notifications" as N {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK lần trình>>
+  * kind : VARCHAR(10) <<submit|approve|reject>>
+  * submission_no : INT <<FK lần trình>>
+  * recipient_id : VARCHAR(50)
+  * content_json : JSON
+  * status : VARCHAR(10) <<Pending|Sent|Failed>>
+  * attempt_count : INT
+  * created_at : TIMESTAMPTZ
+  sent_at : TIMESTAMPTZ
+  last_error : VARCHAR(500)
+}
+
+entity "payment_adjustments\n<<Blocked by OQ-03 – hồ sơ riêng theo SYS v2>>" as J #FFF4DB {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  * adjustment_no : INT
+  * status : VARCHAR(10) <<Pending|Approved|Declined>>
+  * minutes_no : VARCHAR(50)
+  * minutes_date : DATE
+  * minutes_file_key : VARCHAR(200)
+  * minutes_file_name : VARCHAR(255)
+  * party_a_confirmed : BOOLEAN
+  * party_b_confirmed : BOOLEAN
+  * effective_total_before : DECIMAL(19,4)
+  * proposed_subtotal : DECIMAL(19,4)
+  * proposed_tax_amount : DECIMAL(19,4)
+  * proposed_total : DECIMAL(19,4)
+  * created_by / created_at
+  decided_by / decided_at
+  decline_reason : TEXT
+  * version : INT
+}
+
+entity "payment_adjustment_changes" as JC #FFF4DB {
+  * id : UUID <<PK>>
+  --
+  * adjustment_id : UUID <<FK>>
+  * change_no : INT
+  * change_type : VARCHAR(10) <<Modify|Add|Remove>>
+  * service_code : VARCHAR(50)
+  quantity_before / quantity_after
+  unit_price_before / unit_price_after
+  amount_before / amount_after
+  * reason : TEXT
+}
+
+entity "audit_entries" as A {
+  * id : UUID <<PK>>
+  --
+  * payment_sheet_id : UUID <<FK>>
+  adjustment_id : UUID <<FK>>
+  * target_type : VARCHAR(20)
+  * action : VARCHAR(20) <<8 động từ>>
+  * actor_id : VARCHAR(50)
+  * actor_role : VARCHAR(10)
+  * occurred_at : TIMESTAMPTZ
+  from_status / to_status
+  before_json : JSON
+  * after_json : JSON
+  reason : TEXT
+  submission_no : INT
+}
+
+S ||--o{ L : gồm
+L ||--|{ LS : gộp từ
+S ||--o{ C : giữ chỗ tháng
+S ||--o{ SB : lần trình
+SB ||--o{ N : thông báo
+S ||--o{ J : điều chỉnh
+J ||--|{ JC : thay đổi
+S ||--|{ A : ghi lại
+J |o--o{ A : ghi lại
+
+note right of S
+  Ghi có điều kiện status + version (DD-02).
+  Approved/Cancelled không sửa trực tiếp (PAY-05, §4.5).
+  Người duyệt theo total_amount: OQ-02, service kiểm tra.
+end note
+
+note bottom of SB
+  Lưu vai trò, nội dung và danh sách theo lần trình
+  (PrepareSubmission / EnsureRecipients – seq-us-02-1/02-2-v2).
+  recipients_resolved_at NULL = chưa có người nhận (A8).
+end note
+
+note bottom of C
+  PK (contract_id, month_start): chặn kỳ trùng/chồng lấn,
+  kể cả lần lập đang chạy song song; xóa khi hủy (DD-13).
+end note
+
+note bottom of J
+  UNIQUE (payment_sheet_id) WHERE status = 'Pending'.
+  Số liệu hiệu lực = bảng gốc + hồ sơ Approved (DD-16).
+end note
+
+note bottom of A
+  Append-only; ghi cùng giao dịch với thay đổi (NFR-PAY-01, DD-03).
+end note
+
+legend right
+  * = NOT NULL. contract_id, price_list_id, quantity_record_id, *_by: tham chiếu logic sang module khác, không FK chéo module.
+  Nền vàng = phụ thuộc OQ chưa xác nhận ([GIẢ ĐỊNH – Cần xác nhận]), chưa phải thiết kế cuối.
+endlegend
+@enduml
