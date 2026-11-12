@@ -1,10 +1,10 @@
 @startuml erd-v2
 title ERD (mô hình dữ liệu) – Bảng thanh toán, dùng chung US-PAY-01..05 – v2
-' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (gồm seq-us-02-1/02-2-v2), 03-detailed-design-v2.md, 05-data-design-v2.md | Prompt: P-37, P-38
+' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (gồm seq-us-01-update-v2, seq-us-02-1/02-2-v2), 01–04-v2, 05-data-design-v2.md, src/Qtkd.Api (AS-IS) | Prompt: P-37, P-38, P-47
 ' Mục đích: bảng, cột chính, khóa và quan hệ của toàn module. Đây là ERD, không phải UML class diagram.
-' Phạm vi: US-PAY-01..05 (SYS-US-01, 02, 02b, 03, 03b, 04, 04b, 05); PAY-01..08; NFR-PAY-01
+' Phạm vi: US-PAY-01..05 (SYS-US-01, 01b, 02, 02b, 03, 03b, 04, 04b, 05); PAY-01..08; NFR-PAY-01
 ' OQ: OQ-01, OQ-D-02 (claim kỳ); OQ-03, OQ-US04-01/02 (hồ sơ điều chỉnh); OQ-US03-03 (tiền)
-' Chưa có class-v2.puml / 04-api-contract-v2.md: tên là tên dùng tạm theo sequence v2.
+' Field API ↔ cột theo 04-api-contract-v2 (05 §14.5). Chưa có class-v2.puml.
 ' Trạng thái: Bản sau review – Design Pending Approval
 skinparam shadowing false
 skinparam defaultFontName Segoe UI
@@ -19,13 +19,13 @@ entity "payment_sheets" as S {
   * create_operation_id : UUID <<UNIQUE>>
   * contract_id : INT <<ref Hợp đồng>>
   * period_type : VARCHAR(10) <<Month|Quarter>>
-  * period_start : DATE
+  * period_start : DATE <<sửa được khi Draft>>
   * period_end : DATE
   * price_list_id : VARCHAR(50) <<ref Bảng giá>>
-  price_list_version : VARCHAR(50)
   * status : VARCHAR(20) <<CHECK 5 giá trị §3>>
   * subtotal_amount : DECIMAL(19,4)
   * tax_rate : DECIMAL(5,4)
+  tax_rate_source_ref : VARCHAR(100)
   * tax_amount : DECIMAL(19,4)
   * total_amount : DECIMAL(19,4) <<CHECK ≥ 0>>
   note : TEXT
@@ -145,10 +145,11 @@ entity "audit_entries" as A {
   * after_json : JSON
   reason : TEXT
   submission_no : INT
+  operation_id : UUID <<UNIQUE theo bảng>>
 }
 
 S ||--o{ L : gồm
-L ||--|{ LS : gộp từ
+L ||--o{ LS : gộp từ
 S ||--o{ C : giữ chỗ tháng
 S ||--o{ SB : lần trình
 SB ||--o{ N : thông báo
@@ -171,7 +172,8 @@ end note
 
 note bottom of C
   PK (contract_id, month_start): chặn kỳ trùng/chồng lấn,
-  kể cả lần lập đang chạy song song; xóa khi hủy (DD-13).
+  kể cả lần lập đang chạy song song; xóa khi hủy,
+  đổi claim khi sửa kỳ Draft (DD-13).
 end note
 
 note bottom of J
@@ -181,6 +183,7 @@ end note
 
 note bottom of A
   Append-only; ghi cùng giao dịch với thay đổi (NFR-PAY-01, DD-03).
+  operation_id: xác minh lần lập/cập nhật (E7/E23, DD-17).
 end note
 
 legend right

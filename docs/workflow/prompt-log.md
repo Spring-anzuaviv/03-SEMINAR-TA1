@@ -1094,3 +1094,89 @@ cái này nó có chung điều kiện kiểm tra này kia với cái tạo nên
 
 rà soát lại thử 01 02 03 04 ở v2 có cần thay đổi gì không? Sau đó
 ```
+
+### P-47 – Đọc lại nguồn và đồng bộ ERD/thiết kế dữ liệu v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 12/11/2026 / Người dùng qua Claude Code |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Java 21.0.13; PlantUML 1.2024.3 (jar jebbs.plantuml 2.18.1); Python 3 |
+| Vai trò / skill / version | design / data-design, naming-versioning / v2 |
+| Nguồn | `src/Qtkd.Api/` (không đổi từ 07/11/2026: chỉ có hợp đồng lưu trong bộ nhớ, `Contract.Id` kiểu `int`, không có thuế suất); sys-us-01-v2.md (thêm SYS-US-01b); seq-us-01-v2.puml (khối `seq-us-01-update-v2`); 01, 02, 03, 04-v2 (P-39..P-46) |
+| Lệch tìm thấy | `src/` không làm đổi ERD. Từ tài liệu v2: sửa Draft đổi được kỳ (cần đổi claim kỳ); `operationId` của lần cập nhật gắn với audit (E8/E23); thuế suất lưu kèm tham chiếu nguồn (02 §4); OQ-US01-01 đã xác nhận bảng giá Active không đổi → `price_list_version` thừa; OQ-US01-04 đã xác nhận dịch vụ không có sản lượng vẫn có dòng → dòng có thể không có nguồn; OQ-US01-02, OQ-US05-01..03 đã có xác nhận; 04-v2 đã có để ánh xạ field ↔ cột |
+| Đầu ra | [05-data-design-v2.md](../design/payment-management/v2/05-data-design-v2.md): bỏ `price_list_version`; thêm `tax_rate_source_ref`, `audit_entries.operation_id` + `ux_audit_operation`; kỳ sửa được khi Draft và đổi claim trong giao dịch update; cardinality dòng–nguồn 1–0..*; cập nhật trạng thái OQ, DD-17, tên dùng tạm; thêm §14.5 ánh xạ field API ↔ cột. [erd-v2.puml](../design/payment-management/v2/diagrams/erd-v2.puml) + [SVG](../design/payment-management/v2/diagrams/erd-v2.svg) |
+| Kiểm chứng | PlantUML -checkonly và -tsvg exit 0; PNG tạm ngoài repo đã xem; SVG XML hợp lệ. Liên kết cục bộ trong 05 đều tồn tại; `Blocked by OQ` gồm OQ-01, OQ-03, OQ-US03-03 |
+| Phần AI / nhóm | Claude đối chiếu và sửa 05/ERD; chưa commit |
+| Giới hạn | Design Pending Approval. Chưa có class-v2.puml để đối chiếu entity ↔ class |
+
+Prompt nguyên văn:
+
+```text
+đọc lại src code xem có điều chỉnh gì ở erd v2 không
+```
+
+### P-48 – Lập ma trận truy vết v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 12/11/2026 / Người dùng qua Claude Code |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Python 3 |
+| Vai trò / skill / version | design / traceability-matrix, naming-versioning / v2 |
+| Nguồn | TA-SPEC; sys-us-01..05-v2; 01–05 v2; component-v2, state-machine-v2, erd-v2 và 8 sequence v2 (commit ghi ở §1 của 06) |
+| Đầu ra | [06-traceability-matrix-v2.md](../design/payment-management/v2/06-traceability-matrix-v2.md): ma trận chính cho 5 US, 8 PAY, 2 NFR (SYS, thành phần, UML, API, class/method, dữ liệu, kiểm chứng, trạng thái, OQ/DD); NFR-PAY-01 theo từng chuyển trạng thái; 8 tiêu chí dẫn xuất của 01-v2 §5; ma trận ngược; 6 lệch tên cần đồng bộ; phần bị chặn; tổng hợp bao phủ (0 đã thiết kế, 3 thiết kế một phần, 12 Blocked) |
+| Kiểm chứng | Lệnh Python của skill traceability-matrix với V = v2: `MISSING: none` (v2 không có mã `AC-USNN-kk`). Liên kết cục bộ trong 06 đều tồn tại; các dòng ma trận đủ 13 cột. Đối chiếu bằng grep các tên phương thức được dẫn (RequiredApproverRole, IsCreator, NotifyResult, PrepareSubmission, EnsureRecipients, FindSaveOutcome, GetByIdForUpdate…) đều có trong sequence v2 |
+| Phần AI / nhóm | Claude lập ma trận; chưa có sửa của nhóm; chưa commit |
+| Giới hạn | Design Pending Approval. Chưa có class-v2.puml và 07-design-decisions-v2.md. Cột kiểm chứng là kế hoạch, chưa chạy kiểm thử. Không sửa các file thiết kế khác; SVG seq-us-01 đang đổi tên trong bản làm việc của nhóm, chưa được động tới |
+
+Prompt nguyên văn:
+
+```text
+tạo giúp tôi ma trận truy vết: Một bảng liên kết từng user story và quy tắc nghiệp vụ với sơ đồ, API và dữ liệu liên quan
+```
+
+### P-49 – Lập class diagram v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 12/11/2026 / Người dùng qua Claude Code |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Java 21.0.13; PlantUML 1.2024.3 (jar jebbs.plantuml 2.18.1); Python 3 |
+| Vai trò / skill / version | design / uml-diagrams, naming-versioning / v2 |
+| Nguồn | sys-us-01..05-v2; 8 sequence v2 (participant và lời gọi); 02-v2 §2–4; 03-v2; 04-v2 (19 endpoint, DTO); 05-v2 (bảng/cột); class-v1.puml (khung trình bày) |
+| Đầu ra | [class-v2.puml](../design/payment-management/v2/diagrams/class-v2.puml) + [SVG](../design/payment-management/v2/diagrams/class-v2.svg); mục “Class diagram (toàn module)” cuối [03-detailed-design-v2.md](../design/payment-management/v2/03-detailed-design-v2.md) kèm 4 điểm cần đồng bộ; cập nhật [06-traceability-matrix-v2.md](../design/payment-management/v2/06-traceability-matrix-v2.md): cột Class/method theo class-v2, PAY-07, NFR-PAY-01, NFR-PAY-02 và 01§5-#4 chuyển “Đã thiết kế – chưa kiểm thử” |
+| Kiểm chứng | PlantUML -checkonly và -tsvg exit 0; SVG XML hợp lệ; PNG tạm ngoài repo đã xem toàn ảnh và phóng to vùng Application. Lần vẽ đầu ngắt dòng chữ ký bằng `\n` làm phần sau hiện thành thuộc tính – đã viết lại file, chữ ký một dòng, bỏ tham số `user : CurrentUser` lặp lại và ghi chú thay thế |
+| Phần AI / nhóm | Claude vẽ sơ đồ và cập nhật 03/06; chưa có sửa của nhóm; chưa commit |
+| Giới hạn | Design Pending Approval. Lớp/phương thức phụ thuộc OQ-01, 02, 03, 04, 05, OQ-US03-03, OQ-D-02, OQ-D-03 có nhãn Blocked. Sơ đồ khổ lớn (khoảng 7264×3270 px), nên xem bản SVG |
+
+Prompt nguyên văn:
+
+```text
+> Lập class-v2.puml
+
+lập cái này theo cái v2
+
+sửa cái này trước r mới sửa báo cáo
+```
+
+### P-50 – Sửa báo cáo đánh giá trên Google Docs và ghi chú cấu hình `.cursor`
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 12/11/2026 / Người dùng qua Claude Code |
+| Công cụ / model | Claude Code / Claude Opus 5.5; Google Docs connector (read_doc, update_doc); Google Drive connector (read_file_content); Python 3 |
+| Vai trò | Hỗ trợ nhóm sửa báo cáo mục 2 theo kết quả rà soát; không đổi nghiệp vụ |
+| Nguồn | Báo cáo “BÁO CÁO ĐÁNH GIÁ” trên Google Docs (tab Thẻ 1); đối chiếu sys-us v2, sequence v2, 01–06 v2, class-v2, ai-review-01-v1 |
+| Đầu ra | Sửa trực tiếp trong Google Docs, chữ mới màu đỏ: bìa tháng 11; mã OQ-US01-01; cách xử lý OQ-US01-01/02/04, OQ-US03-03 theo v2; bỏ câu cảnh báo kỳ chưa lập ở OQ-US01-05 (không có trong SYS v2); trạng thái OQ đã xác nhận (OQ-US01-01/02/04, OQ-US05-01..03, OQ-US03-03 một phần); thêm dòng OQ-US01-07; thêm gạch đầu dòng “Cấu hình AI” (ánh xạ rules/ ↔ .cursor); dòng tổng hợp 24 Đúng/1 Sai/3 Thừa; mục 4 sửa nhãn bước US-03, luồng US-01, SYS-US-01b, tên sequence US-02 tách, bỏ “idempotency key”, thêm dòng class/dữ liệu/ma trận; mục 5 sửa 12 file/13 sơ đồ, 19 endpoint, ghi mâu thuẫn điểm đo NFR-PAY-02. [README.md](../../README.md): thêm đoạn ánh xạ `.cursor/rules`, `.cursor/agents` sang rules/ theo quyết định giữ cấu trúc hiện tại |
+| Kiểm chứng | Đọc lại bằng read_doc và read_file_content: mọi cụm chữ mới có mặt, đúng màu đỏ (chỉ phần thay đổi), cụm chữ cũ đã mất; hai dòng bảng mới có đủ ô. Tài liệu có người khác sửa đồng thời: hai lần ghi với requiredRevisionId bị từ chối nguyên khối (không ghi gì), lần ghi thành công dùng targetRevisionId để Google tự dời vị trí |
+| Phần AI / nhóm | Claude sửa báo cáo và README; chưa commit |
+| Giới hạn | Mục lục (tableOfContents) chưa cập nhật mục IV, V – API không cập nhật được, nhóm cần bấm cập nhật mục lục. Phần xóa (câu cảnh báo kỳ chưa lập ở OQ-US01-05) không hiển thị màu |
+
+Prompt nguyên văn:
+
+```text
+https://docs.google.com/document/d/1gVbsKOpq5jyuin74rbdd1OfVzenv_SscxHQzgjIoAI0/edit?tab=t.0
+sửa thẳng trong đây bằng màu đỏ
+```
+
+```text
+giữ cấu trúc hiện tại
+```

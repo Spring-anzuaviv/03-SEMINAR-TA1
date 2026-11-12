@@ -5,6 +5,12 @@ Thiết kế module Bảng thanh toán từ đặc tả bằng AI agent, đánh 
 (ba, design, reviewer) nằm trong [rules/](rules/README.md), mỗi quy tắc ở một file. Đề cho phép dùng công cụ AI bất kỳ; mọi công cụ dùng
 cùng file này và gọi vai trò bằng prompt.
 
+Đề nêu thư mục `.cursor/agents` và `.cursor/rules`. Nhóm giữ cấu hình trung lập công cụ thay cho
+hai thư mục này: quy tắc chung trong [rules/](rules/README.md) (`sources`, `common`, `payment-scope`,
+`handoff`) tương ứng `.cursor/rules`; ba file vai trò [ba](rules/ba.md), [design](rules/design.md),
+[reviewer](rules/reviewer.md) tương ứng `.cursor/agents`. Cursor, Claude Code hay Codex đều đọc
+`AGENTS.md` rồi dẫn tới các file này.
+
 Nguồn nghiệp vụ duy nhất: [PDF đề bài](docs/requirements/payment-management/assignment-ta-1-2.pdf)
 và bản chép chữ [spec.md](docs/requirements/payment-management/spec.md)
 ([sổ nguồn](docs/requirements/payment-management/sources.md)).

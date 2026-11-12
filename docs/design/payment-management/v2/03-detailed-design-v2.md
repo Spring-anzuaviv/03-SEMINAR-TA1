@@ -136,3 +136,23 @@ Theo chỉ định của người dùng, [seq-us-01-v2.puml](diagrams/seq-us-01-
 ### Kiểm chứng US-PAY-01b
 
 Lệnh và kết quả cuối lượt tại P-45 trong [nhật ký](../../../workflow/prompt-log.md). Kiểm tra hai khối độc lập, giữ nguyên khối lập, đủ nhãn 1–8 và A2/A4.1/A5/A6/A7/AC.1/EC.1/E7.1/E7.2; chạy PlantUML `-checkonly`, `-tsvg` cho file chung và xem PNG sơ đồ chỉnh sửa. Kiểm tra cú pháp/render không thay thế kiểm thử API/giao dịch hoặc phê duyệt thiết kế.
+
+## Class diagram (toàn module)
+
+> Bổ sung: 12/11/2026 · Prompt: P-49 · AI: Claude Code / Claude Opus 5.5. Trạng thái: Design Pending Approval.
+> Đầu vào: System Spec v2 (SYS-US-01..05, 01b, 02b, 03b, 04b), tám sequence v2, [04 – Hợp đồng API](04-api-contract-v2.md), [05 – Dữ liệu](05-data-design-v2.md).
+
+| Nguồn | Ảnh | Phạm vi | Kiểm chứng |
+|---|---|---|---|
+| [class-v2.puml](diagrams/class-v2.puml) | [SVG](diagrams/class-v2.svg) | Lớp miền (PaymentSheet, PaymentLine, PaymentSubmission, PaymentNotification, PaymentAdjustment, AuditEntry, value object, enum), `PaymentCalculator`, `PaymentController` (19 endpoint E2–E23), ba service, repository/audit/unit of work/notifier và interface chỉ đọc của Hợp đồng, Bảng giá, Sản lượng, Danh bạ | PlantUML 1.2024.3 `-checkonly`, `-tsvg` thành công; đã xem PNG tạm (P-49). |
+
+Tên lớp, phương thức và tham số lấy từ participant và lời gọi trong sequence v2. Endpoint lấy từ 04-v2, thuộc tính lấy theo bảng/cột của 05-v2. Ba service nhận thêm `user : CurrentUser` ở mọi phương thức public; tham số này được bỏ khỏi chữ ký trên sơ đồ cho gọn. Lớp và phương thức phụ thuộc OQ chưa xác nhận gắn nhãn `<<Blocked by OQ-…>>` hoặc ghi chú.
+
+Điểm cần đồng bộ phát hiện khi vẽ:
+
+| # | Vị trí | Nội dung |
+|---|---|---|
+| 1 | `seq-us-03-1-v2` ↔ 05-v2 §3.5 | Sequence chỉ gọi `INotifier.NotifyResult` cho thông báo duyệt/từ chối, còn 05 lưu thêm dòng `payment_notifications` kind `approve`/`reject`. Cần chọn một cách. |
+| 2 | 04-v2 E21, E17 | `ListAdjustments`, `GetAdjustment` (và `IAdjustmentRepository.ListBySheet`) chỉ có trong hợp đồng API, chưa có sequence. |
+| 3 | 04-v2 E23 ↔ `seq-us-01-update-v2` | Sơ đồ đặt tên controller `VerifyUpdateOutcome` để tách với E7; sequence gọi `VerifySaveOutcome(operationId, sheetId)` ở service. Tên service giữ theo sequence. |
+| 4 | `PaymentCalculator` | Không là participant trong sequence (các bước tính vẽ dạng `S -> S`). Lớp được thêm theo quyết định dùng chung bộ tính ở 02-v2 §4 (P-39). |
