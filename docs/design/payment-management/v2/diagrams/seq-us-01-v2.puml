@@ -279,7 +279,7 @@ title Chỉnh sửa bảng thanh toán Draft (SYS-US-01b) – v2
 ' Nguồn: sys-us-01-v2.md mục 1.2 (P-44); TA-SPEC §4.1, §1, §6.
 ' Phạm vi: 8 bước chỉnh sửa, A2/A4.1/A5/A6/A7/AC.1 và EC.1/E7.1/E7.2.
 ' Đây là interaction độc lập, không phải nhánh hoặc phần tiếp nối của luồng lập.
-' Hai interaction cùng file theo chỉ định người dùng; khối này xuất seq-us-01-update-v2.svg.
+' Hai interaction cùng file theo chỉ định người dùng; khối này xuất seq-us-01-2-v2.svg.
 ' Trạng thái: Design Pending Approval.
 ' GetById/Update/ReloadSource theo tên API v2; period và operationId là đề xuất mở rộng E8.
 ' Không chốt endpoint cho ReloadSource thử trên form hoặc VerifySaveOutcome của update.
