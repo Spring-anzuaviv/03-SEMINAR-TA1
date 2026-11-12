@@ -26,6 +26,21 @@ Mọi file thiết kế suy ra từ sys spec cùng version trong
 | Ma trận truy vết | `06-traceability-matrix-v1.md` | 10 | toàn bộ v1 | Đã lập (P-22) |
 | (tùy chọn) Bàn giao | `08-handoff-to-developer-v1.md` | – | toàn bộ v1 | Không bắt buộc |
 
+## Hiện trạng v2
+
+| Sản phẩm | File trong `v2/` | Ghi chú |
+|---|---|---|
+| Tóm tắt, kiến trúc, chi tiết, API, dữ liệu, truy vết | `01-requirements-summary-v2.md` … `06-traceability-matrix-v2.md` | Mỗi file có mục "Thay đổi so với v1" (03 ghi theo từng US) |
+| Quyết định kỹ thuật | `07-design-decisions-v2.md` | Chưa có file |
+| Sequence US-01 | `diagrams/seq-us-01-v2.puml` | Một file hai khối `@startuml` (lập mới, sửa Draft); ảnh `seq-us-01-1-v2.svg`, `seq-us-01-2-v2.svg` |
+| Sequence US-02..04 | `diagrams/seq-us-0N-1-v2.puml`, `seq-us-0N-2-v2.puml` | Tách hai thao tác mỗi US |
+| Sequence US-05 | `diagrams/seq-us-05-v2.puml` | |
+| Class, component, state, ERD | `diagrams/class-v2`, `component-v2`, `state-machine-v2`, `erd-v2` (`.puml` + `.svg`) | |
+
+Hậu tố tách `-1`/`-2` chưa khớp mẫu `seq-us-NN-<thao-tac>-vK` của
+[naming-versioning](../../../skills/naming-versioning/SKILL.md), nên
+`scripts/verify_agent_config.py` hiện báo FAIL ở bước kiểm tra tên file.
+
 Ảnh kết xuất (`.svg`/`.png`) đặt cạnh file `.puml`, cùng tên gốc. Chưa kết xuất thì
 ghi `Chưa kiểm tra kết xuất sơ đồ` trong danh mục sơ đồ của 03.
 

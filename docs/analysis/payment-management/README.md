@@ -18,7 +18,15 @@
 | `sys-us-04-v1.md` | US-PAY-04 Điều chỉnh bảng đã duyệt | Lộc | Đã lập (v1); OQ + AC bổ sung P-22 |
 | `sys-us-05-v1.md` | US-PAY-05 Hủy bảng nháp | BA Team | Đã lập (v1) |
 | `open-questions-v1.md` | Bảng OQ dùng chung (OQ-01..05 giữ chỗ + OQ-USNN-kk) | BA Team | Đã gộp một bảng, 25 ID (P-22) |
-| `requirements-checklist-v1.md` | 5 US, 8 PAY, 2 NFR → trạng thái/OQ | | Chưa làm |
+| `requirements-checklist-v1.md` | 5 US, 8 PAY, 2 NFR → trạng thái/OQ | | Chưa làm (chưa có file) |
+
+## Hiện trạng v2
+
+| File | Trạng thái |
+|---|---|
+| `sys-us-01-v2.md` … `sys-us-05-v2.md` | Đã lập (v2); US-01 bổ sung use case chỉnh sửa bảng Draft (mục 1.2) |
+| `open-questions-v2.md` | Chưa có file; OQ vẫn tra trong `v1/open-questions-v1.md` |
+| `requirements-checklist-v2.md` | Chưa có file |
 
 Nhóm tự điền cột Người phụ trách/Trạng thái. Năm file sys-us có thể chia cho
 năm người làm song song: mỗi người chỉ đặt OQ mới dạng `OQ-USNN-kk` của US mình,

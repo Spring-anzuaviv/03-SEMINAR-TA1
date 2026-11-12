@@ -34,6 +34,8 @@ Commit sau mỗi bước với message nêu file và version, vd.
 python scripts/verify_agent_config.py
 ```
 
+Windows: đặt `PYTHONIOENCODING=utf-8` nếu gặp lỗi `'charmap' codec`.
+
 Kiểm tra AGENTS.md và rules/ đủ mục, skill có front matter, liên kết cục bộ hợp lệ, checksum
 TA-PDF/TA-SPEC không đổi và **tên file trong v1/v2 đúng quy ước**. Đạt kiểm tra
 không chứng minh nội dung phân tích/thiết kế đúng.

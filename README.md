@@ -19,12 +19,12 @@ và bản chép chữ [spec.md](docs/requirements/payment-management/spec.md)
 
 Đợt này nộp **mục 1 và 2** của "Yêu cầu bài tập" [TA-PDF tr.3]:
 
-| Mục | Sản phẩm | Nơi trong workspace |
-|---|---|---|
-| 1 | Workspace: agent + rules, tóm tắt yêu cầu, kiến trúc, class/sequence/state, API, dữ liệu, truy vết | [AGENTS.md](AGENTS.md), [rules/](rules/README.md), [skills/](skills/README.md), [docs/design/payment-management/](docs/design/payment-management/README.md) |
-| 2 | Báo cáo đánh giá: vấn đề trong đặc tả + đánh giá nhận xét AI Reviewer (đúng/sai/thừa) | [docs/review/payment-management/](docs/review/payment-management/README.md) → `evaluation-report.md` |
-| 3 (sau) | Bản lần chạy đầu và bản sau review | Thư mục `v1/` và `v2/` đã dựng sẵn |
-| 4 (sau) | Nhật ký prompt, phân công | [docs/workflow/prompt-log.md](docs/workflow/prompt-log.md) – ghi ngay từ bây giờ |
+| Mục | Sản phẩm | Nơi trong workspace | Hiện trạng |
+|---|---|---|---|
+| 1 | Workspace: agent + rules, tóm tắt yêu cầu, kiến trúc, class/sequence/state, API, dữ liệu, truy vết | [AGENTS.md](AGENTS.md), [rules/](rules/README.md), [skills/](skills/README.md), [docs/design/payment-management/](docs/design/payment-management/README.md) | v1 đủ 01–07 và sơ đồ |
+| 2 | Báo cáo đánh giá: vấn đề trong đặc tả + đánh giá nhận xét AI Reviewer (đúng/sai/thừa) | [docs/review/payment-management/](docs/review/payment-management/README.md) | Có `ai-review-01-v1.md` (§8: nhóm đánh giá 10 nhận xét US-01); chưa có `review-assessment-01-v1.md`, `evaluation-report.md` |
+| 3 | Bản lần chạy đầu và bản sau review | `v1/` (đóng băng), `v2/` | v2 đang làm: sys-us 01–05, thiết kế 01–06 và sơ đồ |
+| 4 | Nhật ký prompt, phân công | [docs/workflow/prompt-log.md](docs/workflow/prompt-log.md) | Ghi liên tục |
 
 ## Đặt tên và version
 
@@ -117,18 +117,21 @@ phần được chấp nhận. AI không tự phê duyệt thay nhóm.
 │   │   ├── spec.md                   # TA-SPEC, bản chép §1–6
 │   │   └── sources.md                # Sổ nguồn
 │   ├── analysis/payment-management/  # Đầu ra ba
-│   │   ├── v1/                       # sys-us-NN-v1.md, open-questions-v1.md, …
-│   │   └── v2/
+│   │   ├── v1/                       # sys-us-01..05-v1.md, open-questions-v1.md
+│   │   └── v2/                       # sys-us-01..05-v2.md
 │   ├── design/payment-management/    # Đầu ra design
-│   │   ├── v1/                       # 01..08-*-v1.md + diagrams/*-v1.puml
-│   │   └── v2/
-│   ├── review/payment-management/    # ai-review-NN-vK, review-assessment-NN-vK, evaluation-report
+│   │   ├── v1/                       # 01..07-*-v1.md + diagrams/*-v1.{puml,svg}
+│   │   └── v2/                       # 01..06-*-v2.md + diagrams/*-v2.{puml,svg}
+│   ├── review/payment-management/    # ai-review-01-v1.md (assessment, evaluation-report: chưa có)
 │   ├── workflow/                     # Quy trình, prompt-log
 │   └── api-demo.http                 # Request demo hợp đồng (AS-IS)
 ├── scripts/
 │   ├── verify_agent_config.py        # Kiểm tra cấu hình, nguồn, quy ước tên
-│   └── demo-api.{sh,ps1}
-└── src/Qtkd.Api/                     # ASP.NET Core .NET 8, demo hợp đồng (AS-IS)
+│   └── demo-api.{sh,ps1}             # Gọi thử API demo bằng curl / PowerShell
+└── src/Qtkd.Api/                     # ASP.NET Core .NET 8 minimal API, demo hợp đồng (AS-IS)
+    ├── Program.cs                    # Đăng ký service, JSON enum dạng chuỗi, 5 endpoint
+    ├── Models/Contract.cs            # Contract, ContractStatus, CreateContractRequest, ApiError
+    └── Services/ContractService.cs   # Lưu trong bộ nhớ, tạo / lấy / gửi duyệt
 ```
 
 ## Kiểm tra
@@ -138,6 +141,9 @@ Cần Python 3, không cài thư viện ngoài:
 ```sh
 python scripts/verify_agent_config.py
 ```
+
+Trên Windows nếu gặp lỗi `'charmap' codec can't encode`, chạy với `PYTHONIOENCODING=utf-8`
+(PowerShell: `$env:PYTHONIOENCODING='utf-8'`).
 
 Kiểm tra AGENTS.md và rules/ đủ mục, skill có front matter, liên kết cục bộ, checksum nguồn và
 tên file trong `v1/`, `v2/`, `docs/review/` đúng quy ước. Đạt kiểm tra không chứng minh
@@ -162,5 +168,19 @@ Code demo cần .NET 8 SDK, chạy từ thư mục gốc:
 dotnet run --project src/Qtkd.Api --urls http://localhost:5080
 ```
 
-Dùng [docs/api-demo.http](docs/api-demo.http) để gọi API. Demo hợp đồng lưu trong bộ
-nhớ, chưa có Bảng thanh toán; chỉ là bằng chứng hiện trạng, không phải kết quả TA.
+Dùng [docs/api-demo.http](docs/api-demo.http) hoặc `scripts/demo-api.{sh,ps1}` để gọi API.
+
+| Method | Đường dẫn | Kết quả |
+|---|---|---|
+| GET | `/` | `200` `{ application: "QTKD Demo API", version: "1.0" }` |
+| GET | `/api/contracts` | `200` danh sách hợp đồng, sắp theo `id` |
+| GET | `/api/contracts/{id}` | `200` hợp đồng; `404 NOT_FOUND` |
+| POST | `/api/contracts` | Body `{ customerName, effectiveDate }` → `201` hợp đồng `Draft`; `400 INVALID_INPUT` khi thiếu khách hàng/ngày |
+| POST | `/api/contracts/{id}/submit` | Chuyển `Draft`/`RevisionRequested` → `PendingApproval`, tăng `approvalRequestCount` → `200`; `404 NOT_FOUND`; `409` `INVALID_STATE`, `INVALID_CONTRACT`, `INVALID_DATE` (ngày hiệu lực trước ngày hiện tại UTC) |
+
+Trạng thái `ContractStatus`: `Draft`, `PendingApproval`, `RevisionRequested`, `Approved`,
+`Active` (trả về dạng chuỗi). Lỗi có dạng `ApiError { code, message }`. Code chưa có
+endpoint duyệt/từ chối/rút lại (`Withdraw` còn là TODO trong `ContractService`).
+
+Demo hợp đồng lưu trong bộ nhớ (mất khi tắt server, ID bắt đầu từ 1), chưa có Bảng thanh
+toán; chỉ là bằng chứng hiện trạng, không phải kết quả TA.
