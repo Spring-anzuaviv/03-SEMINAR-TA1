@@ -1006,3 +1006,48 @@ Dựa trên pattern phiên bản v1, kết hợp những đề xuất và quyế
 ```
 
 
+
+### P-42 – Tách SYS-US-01b chỉnh sửa Draft trong cùng file SYS-US-01 v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ | 12/11/2026 / Codex, GPT-6; PowerShell; Python 3.12.15 |
+| Vai trò / phạm vi | ba / tách use case chỉnh sửa theo chỉ định người dùng, vẫn trong sys-us-01-v2.md |
+| Nguồn | SYS-US-01 v2 bản thực tế đầu lượt; câu trả lời người dùng hiện tại và yêu cầu trước về tải lại nguồn; TA-SPEC §4.1, §1/§6 và các rule đã đọc trong lượt trước cùng nhiệm vụ. SYS-US-03 §1.2 là luồng mở lại Rejected. Không lấy API làm căn cứ tự chốt trường kỳ được sửa. |
+| Đầu ra | File có mục 1.1 SYS-US-01 lập bảng và 1.2 SYS-US-01b chỉnh sửa Draft. Tách mô tả/actor/trigger/tiền-hậu điều kiện sửa khỏi bảng lập. Chỉnh sửa có 8 bước: mở Draft, bấm Chỉnh sửa, thay đổi kỳ/ghi chú, nhấn Lưu; hệ thống kiểm tra và lưu trên cùng bảng, giữ Draft và audit. |
+| Cập nhật trường được sửa | Theo yêu cầu mới, kỳ thanh toán và ghi chú được sửa; hợp đồng/khách hàng, sản lượng, đơn giá và tiền vẫn chỉ đọc. Đổi kỳ phải đúng cấu hình, không trùng/chồng lấn bảng khác, bỏ qua chính bảng đang sửa và Cancelled; đọc/tính lại theo kỳ mới. Chỉ sửa ghi chú không tải lại thì giữ số liệu. Không tạo bảng mới. |
+| Kiểm tra workspace | verify_agent_config.py → FAIL 2 checks ngoài phạm vi chỉnh SYS: các link nhật ký cũ dẫn file đã không còn và tên các sequence tách bằng hậu tố số 1/2 chưa được bộ kiểm tra naming chấp nhận. Không đổi/xóa các tài liệu đó trong lượt này. |
+| Nhánh phụ | Tải lại nguồn từ yêu cầu trước được giữ ở A4.1, không đưa thành bước bắt buộc trong luồng mở–sửa–lưu. Điều kiện không đạt vào A; lỗi đọc/lưu vào E; có cảnh báo trường nhập, xung đột và kết quả lưu chưa rõ. Mã bước/A/E đánh số riêng theo từng use case. |
+| Kiểm chứng | Đối chiếu với bản đầu lượt: 16 bước lập và toàn bộ nhánh A/E lập giữ nguyên. Hai bảng thống nhất 2 cột; use case sửa có 8 bước liên tục, 9 nhánh duy nhất trong phạm vi của nó, mã nhánh khớp điểm rẽ và có đường tiếp tục/quay lại/kết thúc. Link cục bộ hợp lệ; git diff --check → exit 0. Không sửa sequence/API hoặc mã; không commit/push. |
+| Phần AI / người dùng | Người dùng chỉ định tách use case và cho sửa kỳ/ghi chú. AI cụ thể hóa kiểm tra kỳ, ánh xạ nguồn và xử lý lưu dựa trên quy tắc đã có; không thêm nhập tay dữ liệu nguồn hoặc chính sách thuế mới. |
+
+Prompt nguyên văn:
+
+```text
+tách thành 1 use cáse riêng, vẫn đặt chung file này.
+
+luồng chỉnh sửa cơ bản: bản draft đã được lưu. người dúng nhấn nút chỉnh sửa, điều chỉnh các thông tin được phép thay đổi: kỳ thanh toán, nội dung ghi chú. nhấn lưu.
+```
+
+### P-43 – Viết ngắn luồng thay thế/lỗi của SYS-US-01b
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ | 12/11/2026 / Codex, GPT-6 |
+| Đầu ra | sys-us-01-v2.md, mục 1.2: rút gọn câu chữ của 6 nhánh thay thế và 3 nhánh lỗi; giữ mã, điều kiện, cảnh báo và điểm tiếp tục/quay lại/kết thúc. Giữ riêng lưu thất bại đã xác định và kết quả lưu chưa rõ. Không đổi luồng lập hoặc 8 bước chỉnh sửa. |
+| Kiểm chứng | Kiểm tra số nhánh, bảng 2 cột và git diff --check; không render UML/chạy ứng dụng hoặc commit/push. |
+
+Prompt nguyên văn:
+
+    luồng thay thế và luồng lỗi ghi ngắn gọn lại
+
+### P-44 – Bỏ cụm chỉ bước rẽ trong câu chữ nhánh SYS-US-01b
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ | 12/11/2026 / Codex, GPT-6 |
+| Thay đổi / kiểm chứng | Chỉ sửa hai hàng Luồng thay thế/Luồng lỗi ở mục 1.2: bỏ 8 cụm chỉ nơi phát sinh (Tại bước ..., tại bước 2, 4, 6); giữ mã nhánh và đích quay lại/tiếp tục/kết thúc. Viết hoa đầu câu. Kiểm tra phần lập nguyên vẹn; git diff --check → exit 0, chỉ cảnh báo LF/CRLF nếu có. Không commit/push. |
+
+Prompt nguyên văn:
+
+    luồng thay thế và luồng lỗi bỏ phần tại bước ...
