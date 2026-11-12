@@ -1,8 +1,8 @@
 # 04 – Hợp đồng API module Bảng thanh toán (v2)
 
 > Phiên bản: v2 · Ngày: 11/11/2026 · Người phụ trách: chờ nhóm chỉ định
-> Đầu vào: TA-SPEC §1–6, SYS-US-01..05 v2, tám sequence v2 và tài liệu 01, 02, 03, 05 cùng phiên bản.
-> AI: Codex / GPT-6 · [P-40](../../../workflow/prompt-log.md#p-40--tạo-hợp-đồng-api-v2)
+> Đầu vào: TA-SPEC §1–6, SYS-US-01..05 v2, các sequence v2 gồm SYS-US-01b và tài liệu 01, 02, 03, 05 cùng phiên bản.
+> AI: Codex / GPT-6 · [P-40](../../../workflow/prompt-log.md#p-40--tạo-hợp-đồng-api-v2), [P-46](../../../workflow/prompt-log.md#p-46--đồng-bộ-thiết-kế-với-sys-us-01b)
 > Trạng thái: Bản đề xuất sau review – Design Pending Approval
 
 ## 1. Quy ước chung
@@ -34,7 +34,9 @@ Path dưới đây đã gồm prefix. `{id}` là ID bảng. Mã `E` là tham chi
 | E5 | `POST /api/payment-sheets` | `Create` | NVKD phụ trách | `{ contractId, period, note?, operationId }` | `201 PaymentSheetDto`, `Location` tới E6. `200` khi phát lại đúng lần lưu đã commit theo §3.1 | → `Draft` |
 | E6 | `GET /api/payment-sheets/{id}` | `GetById` | NVKD phụ trách hoặc KTT/GĐKD có thẩm quyền của lần trình cần xem | Path `id` | `200 PaymentSheetDto` | Chỉ đọc |
 | E7 | `GET /api/payment-sheets/form/contracts/{contractId}/save-outcomes/{operationId}` | `VerifySaveOutcome` | NVKD phụ trách, người đã gửi lần lưu | Path `contractId`, `operationId` | `200 { outcome, sheet? }` | Chỉ đọc |
-| E8 | `PUT /api/payment-sheets/{id}` | `Update`, có thể `ReloadSource` | NVKD phụ trách | `{ expectedVersion, note, reloadSource? }` | `200 PaymentSheetDto` | `Draft` → `Draft` |
+| E22 | `POST /api/payment-sheets/{id}/reload-source` | `ReloadSource` | NVKD phụ trách | `{ period }` | `200 { period, priceListId, lines, subtotalAmount, taxRate, taxAmount, totalAmount }` | Chỉ tính trên biểu mẫu Draft |
+| E8 | `PUT /api/payment-sheets/{id}` | `Update` | NVKD phụ trách | `{ expectedVersion, period, note, reloadSource?, operationId }` | `200 PaymentSheetDto` | `Draft` → `Draft`, giữ cùng ID |
+| E23 | `GET /api/payment-sheets/{id}/save-outcomes/{operationId}` | `VerifySaveOutcome` cho cập nhật | NVKD phụ trách, người đã gửi lần lưu | Path `id`, `operationId` | `200 { outcome, sheet? }` | Chỉ đọc |
 | E9 | `POST /api/payment-sheets/{id}/submit` | `Submit` | NVKD phụ trách | `{ expectedVersion }` | `200 SubmissionResultDto` | `Draft` → `PendingApproval` |
 | E15 | `POST /api/payment-sheets/{id}/submit/notifications/resend` | `ResendSubmissionNotifications` | NVKD phụ trách | Body rỗng | `200 SubmissionResultDto` | Giữ `PendingApproval` |
 | E10 | `POST /api/payment-sheets/{id}/approve` | `Approve` | KTT/GĐKD có thẩm quyền, khác người lập | `{ expectedVersion }` | `200 { sheet, notificationStatus }` | `PendingApproval` → `Approved` |
@@ -59,7 +61,11 @@ Path dưới đây đã gồm prefix. `{id}` là ID bảng. Mã `E` là tham chi
 
 E7 tìm đúng lần lưu và kiểm tra quyền trước khi trả dữ liệu. `outcome` là `COMMITTED` (kèm `sheet` tại lần tạo), `DEFINITELY_NOT_COMMITTED` (chỉ khi có bằng chứng giao dịch chưa commit) hoặc `UNKNOWN`. Truy vấn không thấy ID hoặc gặp lỗi tra cứu để kết quả ở `UNKNOWN`. Nếu E5 trả `RESULT_UNKNOWN`, hoặc mất kết nối khi đã gửi E5, client xác minh bằng E7 trước khi gửi lại. Phương án cấp ID trước tránh nhầm với bảng do yêu cầu khác lập cùng kỳ. [Sequence US-01 E15.2](diagrams/seq-us-01-v2.puml) · [05 §10, §12 và DD-17](05-data-design-v2.md)
 
-**E6, E8 – Đọc và sửa.** E6 trả dữ liệu đã lưu để xem, thao tác hoặc đọc lại khi xung đột. Với E8, `note` bắt buộc có mặt trong body và nhận chuỗi hoặc `null`. `reloadSource` mặc định `false`. Khi `true`, server đọc lại nguồn của hợp đồng/kỳ đã lưu và cập nhật dòng, nguồn và tổng. Khi `false`, chỉ cập nhật ghi chú. Bảng phải ở `Draft`. Ghi có điều kiện và audit trước/sau theo 05 §12. Nếu tải lại thất bại, giữ bản đã lưu. Cách gộp sửa ghi chú và tải nguồn trong E8 là đề xuất HTTP cho phần SYS-US-01 hiện chưa có sequence riêng. [SYS-US-01 Mô tả/Hậu điều kiện; 01 §5; 05 §7, §10, §12]
+**E6, E22 – Mở sửa và tải lại nguồn.** E6 trả bảng và version đã lưu để mở biểu mẫu hoặc đọc lại sau xung đột. E22 kiểm tra NVKD phụ trách, `Draft` và kỳ đang chọn. Dùng lại kiểm tra kỳ, sản lượng, giá và tính tiền của luồng lập, loại chính bảng đang sửa và bảng `Cancelled` khỏi kiểm tra chồng lấn. Kết quả tính chỉ điền biểu mẫu. E22 giữ nguyên dữ liệu đã lưu, version và audit. Sau khi tải thành công, client gửi `reloadSource: true` ở E8 nếu tiếp tục lưu. [SYS-US-01b §1.2 bước 1–5, A2/A4.1/EC.1](../../../analysis/payment-management/v2/sys-us-01-v2.md) · [Sequence sửa Draft](diagrams/seq-us-01-update-v2.svg)
+
+**E8 – Lưu thay đổi.** Client gửi `period` đang chọn và `note` (chuỗi hoặc `null`). `reloadSource` mặc định `false`. Khi kỳ khác kỳ đã lưu hoặc `reloadSource` là `true`, server kiểm tra lại nguồn hiện tại và tính lại tiền theo kỳ đang chọn. Khi kỳ giữ nguyên và `reloadSource` là `false`, chỉ cập nhật ghi chú. Server kiểm tra quyền, `Draft` và `expectedVersion` trước khi ghi có điều kiện. Hợp đồng, khách hàng, sản lượng, đơn giá và các giá trị tiền chỉ đọc trên biểu mẫu. Khi đổi kỳ, cập nhật kỳ và ràng buộc giữ chỗ cùng dòng, nguồn, tổng và audit trước/sau trong cùng giao dịch. Lưu thành công giữ ID, giữ `Draft` và tăng version. Xung đột version hoặc kỳ trả `409`, client tải lại E6. [SYS-US-01b §1.2 bước 5–8, A6/A7/E7.1; 02 §3; 03 mục US-PAY-01]
+
+**E23 – Xác minh lần cập nhật.** Client cấp UUID `operationId` trước khi gửi E8 và giữ lại nếu mất phản hồi. Đề xuất lưu mã này cùng bản chụp sau ghi của audit `update` trong cùng giao dịch, có ràng buộc duy nhất trong phạm vi bảng. Mã của một lần cập nhật đã được ghi nhận dùng để tra qua E23. Yêu cầu E8 dùng lại mã đó trả `409 OPERATION_ID_CONFLICT` và dẫn sang E23. Khi E8 trả `503 RESULT_UNKNOWN`, hoặc mất phản hồi, client dùng E23 để tra theo cặp ID bảng và `operationId`, kiểm tra người đã gửi yêu cầu và phân công hiện tại. Dùng ba giá trị `outcome` như E7. `COMMITTED` kèm bản chụp bảng và version của đúng lần cập nhật. Chỉ khi xác nhận chưa commit mới quay lại lưu. Version hiện tại hoặc truy vấn rỗng chưa đủ làm bằng chứng. 05 §9–12 cần bổ sung chi tiết về giữ chỗ khi đổi kỳ và dữ liệu xác minh. [SYS-US-01b §1.2 E7.2; 03 mục US-PAY-01]
 
 ### 3.2. Trình duyệt và gửi lại thông báo
 
@@ -96,8 +102,9 @@ Các endpoint dùng `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND` khi 
 | Endpoint | Lỗi nghiệp vụ và xung đột | Lỗi ghi và phục hồi |
 |---|---|---|
 | E2, E20, E5 | `400 INVALID_PERIOD`, `400 NEGATIVE_TOTAL`, `409 CONTRACT_NOT_ACTIVE`, `409 PERIOD_OCCUPIED`, `409 QUANTITY_INVALID`, `409 PRICE_MISSING` (thiếu đơn giá), `409 PRICE_NOT_SUITABLE` (thiếu hoặc có nhiều bảng giá Active). E5 thêm `409 OPERATION_ID_CONFLICT`. | E5 dùng `500 PERSISTENCE_ERROR` hoặc `503 RESULT_UNKNOWN` với `details.operationId`. Xác minh qua E7. |
-| E6, E7, E21, E17 | Áp dụng lỗi quyền/đọc ở trên. E7 trả `200 UNKNOWN` nếu thao tác tra cứu kết thúc mà chưa xác minh được kết quả. | Chỉ đọc. |
-| E8 | `409 INVALID_STATE`, `409 CONCURRENT_MODIFICATION`. Khi tải lại nguồn, áp dụng lỗi nguồn và dữ liệu tính như E20 theo điều kiện của Draft. | `500 PERSISTENCE_ERROR`, `503 RESULT_UNKNOWN`. Đọc E6. |
+| E6, E7, E23, E21, E17 | Áp dụng lỗi quyền/đọc ở trên. E7/E23 trả `200 { outcome: "UNKNOWN" }` nếu đã kiểm tra quyền nhưng chưa xác minh được kết quả. | Chỉ đọc. |
+| E22 | `409 INVALID_STATE` nếu bảng không còn Draft. Áp dụng lỗi kỳ/nguồn/tính như E20 trong phạm vi bảng đang sửa. | Chỉ đọc và tính. |
+| E8 | `409 INVALID_STATE`, `409 CONCURRENT_MODIFICATION`, `409 PERIOD_OCCUPIED` (kỳ mới bị chiếm) hoặc `409 OPERATION_ID_CONFLICT`. Khi đổi kỳ hoặc tải lại nguồn, áp dụng lỗi kỳ/nguồn/tính như E22. | `500 PERSISTENCE_ERROR` khi đã xác định chưa lưu. `503 RESULT_UNKNOWN` kèm `details.operationId` khi chưa rõ kết quả. Đọc E6 sau xung đột kỳ/version, dùng E23 khi cần xác minh. |
 | E9 | `400 NEGATIVE_TOTAL`, `400 REQUIRED_SERVICE_MISSING`, `409 INVALID_STATE`, `409 DUPLICATE_SUBMIT`, `409 SOURCE_NOT_VALID`, `409 CONCURRENT_MODIFICATION`. | `500 PERSISTENCE_ERROR`, `503 RESULT_UNKNOWN`. Đọc E6. |
 | E15 | `409 INVALID_STATE` hoặc `409 CONCURRENT_MODIFICATION` nếu lần trình thay đổi trong khi xử lý. `200` vẫn dùng cho các kết quả giao nhận ở §3.2. | `500 PERSISTENCE_ERROR` nếu ghi kế hoạch hoặc kết quả gửi thất bại. Đọc lại E6, chỉ gửi lại khi bảng còn `PendingApproval` trên lần trình cần gửi. |
 | E10, E11 | `409 INVALID_STATE`, `409 CONCURRENT_MODIFICATION`, `403 APPROVER_NOT_AUTHORIZED`, `403 SELF_APPROVAL_FORBIDDEN`. Lỗi đọc bảng trả `503 READ_ERROR`. E10 trả `409 SOURCE_NOT_VALID` khi bước kiểm tra lại nguồn không đạt hoặc đọc nguồn lỗi, theo sequence US-03. E11 thêm `400 REASON_REQUIRED`, `400 REASON_TOO_LONG`. | `500 PERSISTENCE_ERROR`, `503 RESULT_UNKNOWN`. Đọc E6. |
@@ -174,11 +181,24 @@ Các endpoint dùng `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND` khi 
 }
 ```
 
+**E8 – Lưu thay đổi kỳ/ghi chú của bảng Draft**:
+
+```json
+{
+  "expectedVersion": 3,
+  "period": { "type": "Month", "start": "2026-12-01", "end": "2026-12-31" },
+  "note": "Cập nhật kỳ theo số liệu đã đối soát",
+  "reloadSource": false,
+  "operationId": "4a756390-b079-4d41-a0ea-25a542557d5b"
+}
+```
+
 ## 6. Truy vết và kiểm chứng
 
 | Yêu cầu | Endpoint | Tiêu chí đối chiếu với 01 §5 và System Spec v2 |
 |---|---|---|
-| US-PAY-01, PAY-01..03 | E2, E20, E5, E6, E7, E8 | Chặn kỳ chồng lấn kể cả ghi đồng thời. Tính lại khi lưu. Xác minh đúng `operationId` khi mất phản hồi. Sửa ghi chú giữ số liệu, tải lại nguồn cập nhật số liệu và audit. |
+| US-PAY-01, SYS-US-01, PAY-01..03 | E2, E20, E5, E6, E7 | Chặn kỳ chồng lấn kể cả ghi đồng thời. Tính lại khi lưu. Xác minh đúng `operationId` của lần tạo khi mất phản hồi. |
+| US-PAY-01, SYS-US-01b, PAY-01..03 | E6, E22, E8, E23 | Tải lại chỉ đổi biểu mẫu. Sửa ghi chú giữ kỳ và số liệu. Đổi kỳ lưu cùng ID, tính lại và ghi audit. Chặn kỳ chồng lấn với bảng khác hoặc version cũ. Xác minh đúng `operationId` của lần cập nhật khi mất phản hồi. |
 | US-PAY-02/02b, PAY-04/06 | E9, E15 | Hai yêu cầu trình cùng version có tối đa một lần trình và một audit. Kiểm thử tổng bằng 0, tổng âm và thiếu dịch vụ. Gửi lại khi chưa có người nhận, gửi lỗi một phần và mất phản hồi sau khi đã gửi. |
 | US-PAY-03/03b, PAY-05..08 | E6, E10, E11, E16 | Kiểm thử quyền ở hai phía ngưỡng và đúng ngưỡng theo phương án v2. Kiểm thử người lập tự xử lý, nguồn đổi, lý do trống/quá 500 từ và giữ lý do sau mở lại. |
 | US-PAY-04/04b, PAY-05 | E12, E21, E17–E19 | Chỉ một hồ sơ Pending mỗi bảng. Duyệt và từ chối đồng thời chỉ một kết quả được lưu. Đối chiếu số liệu gốc và hiệu lực trước/sau, theo phương án OQ-03. |
@@ -190,6 +210,6 @@ Các endpoint dùng `401 UNAUTHENTICATED`, `403 FORBIDDEN`, `404 NOT_FOUND` khi 
 
 | Phần | Thay đổi v2 | Căn cứ |
 |---|---|---|
-| Lập, sửa và xác minh | Mở từ hợp đồng đang xem, chọn kỳ theo ngày, hệ thống tự lấy giá. Xác minh theo `operationId`, hỗ trợ tải lại nguồn trên Draft. | SYS-US-01; DD-17; 05 §3.1, §7–8, §12. |
+| Lập, sửa và xác minh | Mở lập từ hợp đồng đang xem, hệ thống tự lấy giá. Sửa kỳ/ghi chú trên Draft có thao tác tải thử và xác minh riêng theo `operationId` của lần cập nhật. | SYS-US-01 §1.1, SYS-US-01b §1.2; DD-17 cho lập mới; P-46 cho sửa. |
 | Trình và xử lý bảng | Thêm gửi lại theo lần trình và mở lại Rejected. Giữ route trình, duyệt, từ chối và hủy từ sequence. | SYS-US-02/02b, SYS-US-03/03b, SYS-US-05; 03 US-PAY-02. |
 | Điều chỉnh | Hợp đồng đề xuất cho hồ sơ riêng với tệp biên bản, xử lý của GĐKD và số liệu hiệu lực. | SYS-US-04/04b; 05 §11; OQ-03. |

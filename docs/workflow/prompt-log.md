@@ -1072,3 +1072,25 @@ Prompt nguyên văn (JSON; ký tự đóng liên kết được escape để b�
   "tiếp tục. lưu ý: lập 1 seq diagram riêng, không phải rẻ nhánh từ seq lập"
 ]
 ```
+
+### P-46 – Đồng bộ thiết kế với SYS-US-01b
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ / vai trò | 12/11/2026 · Codex / GPT-6 · design, v2. |
+| Nguồn | `303121f`, SYS-US-01 §1.1, SYS-US-01b §1.2, xác nhận P-42, hai khối trong `seq-us-01-v2.puml`, tài liệu 01–05 v2. |
+| Đầu ra | [01 – Tóm tắt yêu cầu](../design/payment-management/v2/01-requirements-summary-v2.md), [02 – Kiến trúc](../design/payment-management/v2/02-architecture-design-v2.md), [03 – Danh mục sequence](../design/payment-management/v2/03-detailed-design-v2.md) và [04 – Hợp đồng API](../design/payment-management/v2/04-api-contract-v2.md). |
+| Thay đổi | Ghi rõ trường kỳ và ghi chú được sửa. Dùng chung kiểm tra kỳ/nguồn khi tính lại. Cập nhật E8 với `period` và `operationId`. Đề xuất E22 tải thử dữ liệu lên biểu mẫu, E23 xác minh đúng lần cập nhật. Giữ ID bảng, bảo vệ kỳ mới và audit trước/sau trong cùng giao dịch. |
+| Kiểm chứng | Đối chiếu liên kết, 19 route duy nhất, ví dụ JSON và các nhánh A4.1/A7/E7.2. PlantUML `-checkonly` cho nguồn chung US-01 và `git diff --check` đạt. `python -X utf8 scripts/verify_agent_config.py` vẫn báo hai nhóm lỗi có sẵn về liên kết lịch sử và tên sequence tách. |
+| Phần AI / nhóm | Nhóm bổ sung SYS-US-01b trong US-PAY-01 và xác nhận dùng lại điều kiện kiểm tra của luồng lập. Codex đồng bộ 01–04, không thêm OQ. E22/E23 và cách lưu dấu cập nhật là đề xuất kỹ thuật. |
+| Giới hạn | 05 cần đồng bộ kỳ và dấu lần cập nhật trong giao dịch sửa. OQ-US01-06 ở 01 ghi mốc bấm nút, còn SYS-US-01 và NFR-PAY-02 trong 01/04 ghi mốc server nhận yêu cầu lưu nháp. Giữ hai nguồn để nhóm đối chiếu. Chưa kiểm thử HTTP/DB hoặc đo hiệu năng. |
+
+Yêu cầu sau danh sách file thay đổi:
+
+```text
+version mới có bổ sung thêm  thêm 1 UC chỉnh sửa bảng thanh toán (ở draft). nó như 1 nhánh của cái tạo thôi á\
+\
+cái này nó có chung điều kiện kiểm tra này kia với cái tạo nên không có thêm OQ hay gì hết.
+
+rà soát lại thử 01 02 03 04 ở v2 có cần thay đổi gì không? Sau đó
+```
