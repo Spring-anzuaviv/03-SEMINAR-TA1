@@ -272,3 +272,259 @@ note over S, DB
   NFR: lưu phản hồi <= 3 giây với < 200 dòng theo SYS; chưa đo hiệu năng.
 end note
 @enduml
+
+@startuml seq-us-01-update-v2
+title Chỉnh sửa bảng thanh toán Draft (SYS-US-01b) – v2
+' Ngày: 12/11/2026 | AI: Codex / GPT-6 | Prompt: P-45
+' Nguồn: sys-us-01-v2.md mục 1.2 (P-44); TA-SPEC §4.1, §1, §6.
+' Phạm vi: 8 bước chỉnh sửa, A2/A4.1/A5/A6/A7/AC.1 và EC.1/E7.1/E7.2.
+' Đây là interaction độc lập, không phải nhánh hoặc phần tiếp nối của luồng lập.
+' Hai interaction cùng file theo chỉ định người dùng; khối này xuất seq-us-01-update-v2.svg.
+' Trạng thái: Design Pending Approval.
+' GetById/Update/ReloadSource theo tên API v2; period và operationId là đề xuất mở rộng E8.
+' Không chốt endpoint cho ReloadSource thử trên form hoặc VerifySaveOutcome của update.
+' Đối chiếu tên, bước và giới hạn API: 03-detailed-design-v2.md, mục US-PAY-01.
+' Không tự thêm quy tắc thuế/làm tròn hoặc SLA sửa Draft.
+
+skinparam defaultFontName Segoe UI
+skinparam shadowing false
+hide footbox
+autonumber
+
+actor "NVKD phụ trách hợp đồng" as U
+boundary "PaymentForm" as UI
+participant "PaymentController" as API
+control "PaymentService" as S
+participant "IPaymentRepository" as R
+participant "IContractReader\n<<read-only>>" as C
+participant "IQuantityReader\n<<read-only>>" as Q
+participant "IPriceReader\n<<read-only>>" as P
+participant "IUnitOfWork" as TX
+participant "IAuditLog" as A
+database "PaymentDatabase" as DB
+
+note over UI, S
+  Tiền điều kiện: bảng đã lưu, đang Draft; NVKD đã đăng nhập và được phân công.
+  Chỉ kỳ thanh toán và ghi chú được nhập; trường nguồn/hợp đồng/tiền chỉ đọc.
+  Mở lại Rejected thuộc SYS-US-03b, không thực hiện trong interaction này.
+end note
+
+UI -> UI : reopen=true; editSaved=false
+loop reopen and not editSaved – mở mới hoặc NVKD yêu cầu tải lại bảng
+  U -> UI : Nhấn "Chỉnh sửa" / tải bản mới (1, A7, EC.1)
+  UI -> API : GetById(sheetId) (E6)
+  API -> S : GetById(sheetId, currentUser)
+  S -> R : GetById(sheetId) (2)
+  R --> S : sheet / null / technicalError
+  S -> S : Phân loại lỗi đọc / không tồn tại
+  opt đọc được và bảng tồn tại
+    S -> C : GetContract(sheet.contractId)
+    C --> S : contract, assignment / technicalError
+    S -> S : Kiểm tra quyền phụ trách và trạng thái Draft (2)
+  end
+  S --> API : openResult, sheet?, failedStep?
+  API --> UI : Kết quả đọc/kiểm tra
+  alt lỗi kỹ thuật
+    UI --> U : Báo lỗi đọc, thử lại bước 2 hoặc kết thúc (EC.1)
+    alt NVKD kết thúc
+      UI -> UI : reopen=false
+    else NVKD thử lại
+      UI -> UI : Giữ ngữ cảnh để đọc lại bảng
+    end
+  else không tồn tại / không Draft / không có quyền
+    UI --> U : Báo lý do; kết thúc tại bước 2 (A2)
+    UI -> UI : reopen=false
+  else hợp lệ
+    UI -> UI : reopen=false; formOpen=true; reloadSource=false\nGiữ sheet.id, version, contractId và dữ liệu gốc
+    UI --> U : Biểu mẫu: kỳ và ghi chú được sửa;\ncác trường nguồn chỉ đọc (3)
+
+    loop formOpen and not editSaved – một thao tác chủ động mỗi lượt
+      U -> UI : Đổi kỳ/ghi chú (4), Tải lại dữ liệu nguồn (A4.1),\nLưu thay đổi (5), thử lại hoặc Đóng
+      alt Đóng biểu mẫu trước khi gửi lưu
+        UI -> UI : formOpen=false
+        UI --> U : Thay đổi chưa lưu; giữ bảng cũ,\nvề màn hình xem bảng và kết thúc (AC.1)
+
+      else Đổi kỳ hoặc ghi chú
+        UI -> UI : Giữ editedPeriod, editedNote (4)\nKhông cho nhập đè sản lượng/đơn giá/tiền
+
+      else Tải lại dữ liệu nguồn
+        UI -> API : ReloadSource(sheetId, editedPeriod)
+        API -> S : ReloadSource(sheetId, editedPeriod, currentUser)
+        group ReadAndCalculateDraftSources – chỉ đọc/tính trên form (A4.1)
+          S -> R : GetById(sheetId)
+          R --> S : currentSheet / null / technicalError
+          S -> S : loadResult=OK / INVALID / TECHNICAL_ERROR
+          opt loadResult = OK
+            S -> C : GetContract(currentSheet.contractId)
+            C --> S : contract, assignment, periodConfig / technicalError
+            S -> S : Kiểm tra quyền, Draft, hợp đồng,\nkỳ theo cấu hình; phân loại loadResult
+          end
+          opt loadResult = OK
+            S -> R : FindOverlap(contractId, editedPeriod,\nexcludeSheetId=sheetId, excludeCancelled=true,\nincludeCreating=true)
+            R --> S : clear / overlap / technicalError
+            S -> S : Phân loại loadResult
+          end
+          opt loadResult = OK
+            S -> Q : GetQuantities(contractId, editedPeriod)
+            Q --> S : quantities, reconciliation / technicalError
+            S -> S : Kiểm tra có dữ liệu, toàn bộ đã đối soát;\nphân loại loadResult
+          end
+          opt loadResult = OK
+            S -> P : GetActiveForContract(contractId)
+            P --> S : activePrices / technicalError
+            S -> S : Kiểm tra đủ đơn giá; phân loại loadResult
+          end
+          opt loadResult = OK
+            loop mỗi dòng dịch vụ từ nguồn
+              S -> S : Ánh xạ sản lượng, đơn giá, nguồn;\ntính thành tiền theo quy tắc của SYS
+            end
+            S -> S : Tính tổng với thuế, kiểm tra tổng không âm;\nloadResult=OK / INVALID / TECHNICAL_ERROR
+          end
+        end
+        S --> API : loadResult, calculatedData?, fieldErrors?
+        API --> UI : Kết quả tải/tính; chưa ghi bảng
+        alt loadResult = TECHNICAL_ERROR
+          UI --> U : Báo lỗi, giữ nội dung;\nthử lại tải nguồn hoặc kết thúc (EC.1)
+        else loadResult = INVALID
+          UI --> U : Cảnh báo phần vi phạm; quay bước 4 (A4.1)
+        else loadResult = OK
+          UI -> UI : Cập nhật dữ liệu tính trên form;\nreloadSource=true, bảng đã lưu chưa đổi
+          UI --> U : Có thể tiếp tục "Lưu thay đổi" ở bước 5 (A4.1)
+        end
+
+      else Lưu thay đổi hoặc chủ động thử lại kiểm tra
+        UI -> UI : Kiểm tra trường bắt buộc (5)
+        alt thiếu/sai thông tin nhập
+          UI --> U : Tô đỏ, nêu lý do, giữ nội dung;\nquay bước 4 (A5)
+          note right of UI : Ghi chú trống hợp lệ; chưa gửi Update.
+        else đủ thông tin
+          UI -> UI : Cấp operationId cho đúng lần cập nhật
+          UI -> API : Update(sheetId, expectedVersion, editedPeriod,\neditedNote, reloadSource, operationId)
+          API -> S : Update(sheetId, request, currentUser)
+          S -> R : GetById(sheetId) (6)
+          R --> S : currentSheet / null / technicalError
+          S -> S : validation=OK / ACCESS_OR_STATE_INVALID /\nTECHNICAL_ERROR
+          opt validation = OK
+            S -> C : GetContract(currentSheet.contractId)
+            C --> S : assignment / technicalError
+            S -> S : Kiểm tra quyền, Draft, field được phép,\nkỳ và note; phân loại validation (6)
+          end
+          opt validation = OK
+            S -> S : needsSource = editedPeriod != currentSheet.period\nor reloadSource
+            alt needsSource
+              ref over S, R, C, Q, P
+                ReadAndCalculateDraftSources như khối A4.1,
+                dùng kỳ đang chọn và nguồn hiện tại (6).
+                Loại trừ chính bảng đang sửa và Cancelled;
+                trả candidate hoặc phần điều kiện/lỗi kỹ thuật.
+              end ref
+              S -> S : validation = kết quả tải/tính; giữ candidate hợp lệ\nMất quyền/trạng thái -> ACCESS_OR_STATE_INVALID
+              opt validation = OK
+                S -> S : candidate = currentSheet với kỳ đang chọn, note mới\nvà dòng/nguồn/tiền vừa tính
+              end
+            else chỉ sửa ghi chú
+              S -> S : candidate = currentSheet với note mới;\ngiữ kỳ, dòng, nguồn và các giá trị tiền (6)
+            end
+          end
+          alt validation = TECHNICAL_ERROR
+            S --> API : TECHNICAL_ERROR(failedStep=6)
+            API --> UI : Lỗi thao tác
+            UI --> U : Giữ nội dung; thử lại bước 6 hoặc kết thúc (EC.1)
+          else validation = ACCESS_OR_STATE_INVALID
+            S --> API : FORBIDDEN / INVALID_STATE / NOT_FOUND
+            API --> UI : Lý do không cho lưu
+            UI --> U : Cảnh báo, không lưu; kết thúc tại bước 6 (A6)
+            UI -> UI : formOpen=false
+          else validation = INVALID
+            S --> API : INVALID_INPUT / SOURCE_NOT_VALID, fieldErrors
+            API --> UI : Phần vi phạm
+            UI --> U : Cảnh báo, giữ nội dung;\nkhông lưu và quay bước 4 (A6)
+          else candidate hợp lệ
+            group Transaction cập nhật cùng bảng Draft và audit (7)
+              S -> TX : Begin()
+              TX --> S : beginResult
+              S -> S : writeResult=OK nếu mở được;\nngược lại TECHNICAL_FAILURE
+              opt writeResult = OK
+                S -> R : Update(sheetId, candidate,\nexpectedStatus=Draft, expectedVersion, operationId)
+                R -> DB : UPDATE có điều kiện trạng thái/version;\nđổi kỳ và dòng nếu cần, bảo vệ không chồng lấn
+                DB --> R : affected / conflict / technicalError
+                R --> S : OK / CONCURRENT_MODIFICATION /\nPERIOD_OCCUPIED / TECHNICAL_FAILURE
+                S -> S : writeResult = kết quả ghi
+              end
+              opt writeResult = OK
+                S -> A : Append(update, currentUser, now,\nbefore=currentSheet, after=candidate)
+                A -> DB : Ghi audit trong cùng giao dịch
+                DB --> A : auditResult
+                A --> S : OK / TECHNICAL_FAILURE
+                S -> S : writeResult = auditResult
+              end
+              opt writeResult = OK
+                S -> TX : Commit()
+                TX --> S : COMMITTED / DEFINITELY_NOT_COMMITTED / UNKNOWN
+                S -> S : writeResult = commitOutcome
+              end
+              alt writeResult = COMMITTED
+                S --> API : updated(sheetId, Draft, newVersion, savedData)
+              else CONCURRENT_MODIFICATION / PERIOD_OCCUPIED
+                S -> TX : Rollback()
+                S --> API : CONCURRENT_MODIFICATION / PAYMENT_EXISTS (A7)
+              else TECHNICAL_FAILURE / DEFINITELY_NOT_COMMITTED
+                opt giao dịch còn mở
+                  S -> TX : Rollback()
+                end
+                S --> API : PERSISTENCE_ERROR (E7.1)
+              else UNKNOWN
+                S --> API : RESULT_UNKNOWN(operationId) (E7.2)
+              end
+            end
+            API --> UI : Kết quả cập nhật / không nhận được phản hồi
+            alt updated
+              UI -> UI : editSaved=true; formOpen=false
+              UI --> U : "Cập nhật bảng thanh toán thành công"\nHiển thị đúng bảng đã cập nhật; kết thúc (8)
+            else CONCURRENT_MODIFICATION / PAYMENT_EXISTS
+              UI --> U : Báo xung đột, không ghi đè;\nquay bước 1 để tải bản mới (A7)
+              UI -> UI : formOpen=false; reopen=true
+            else PERSISTENCE_ERROR
+              UI --> U : Báo lỗi, giữ nội dung;\nchủ động lưu lại từ bước 5 (E7.1)
+            else RESULT_UNKNOWN hoặc mất phản hồi của lần lưu
+              UI -> UI : outcomeUnknown=true; ngăn gửi lại
+              UI --> U : Chưa xác định kết quả lưu (E7.2)
+              loop outcomeUnknown and formOpen – chỉ xác minh hoặc kết thúc
+                U -> UI : Yêu cầu xác minh / kết thúc khi chưa rõ
+                alt NVKD kết thúc
+                  UI -> UI : formOpen=false
+                  UI --> U : Thông báo chưa xác định kết quả (E7.2)
+                else NVKD xác minh
+                  UI -> API : VerifySaveOutcome(operationId, sheetId)
+                  API -> S : VerifySaveOutcome(operationId, sheetId, currentUser)
+                  S -> R : FindSaveOutcome(operationId, sheetId)
+                  R --> S : COMMITTED(savedSheet, version) /\nDEFINITELY_NOT_COMMITTED / UNKNOWN
+                  S --> API : outcome, savedSheet?, version?
+                  API --> UI : Kết quả của đúng lần cập nhật
+                  alt COMMITTED
+                    UI -> UI : outcomeUnknown=false; editSaved=true; formOpen=false
+                    UI --> U : "Cập nhật bảng thanh toán thành công"\nHiển thị dữ liệu đã xác minh (8 / E7.2)
+                  else DEFINITELY_NOT_COMMITTED
+                    UI -> UI : outcomeUnknown=false
+                    UI --> U : Chắc chắn chưa lưu; quay bước 5 để chủ động lưu lại (E7.2)
+                  else UNKNOWN
+                    UI --> U : Chưa rõ; xác minh tiếp hoặc kết thúc (E7.2)
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+note over S, DB
+  Không tạo bảng thanh toán mới; giữ sheetId và trạng thái Draft.
+  Dữ liệu và audit cùng giao dịch, không ghi dở dang hoặc ghi đè bản khác.
+  Lỗi kỹ thuật thuộc E; điều kiện không đạt thuộc A.
+  Chỉ kết luận chưa commit khi có bằng chứng; không suy từ truy vấn rỗng.
+  operationId/version là đề xuất kỹ thuật; không thêm SLA cho sửa Draft.
+end note
+@enduml

@@ -98,3 +98,41 @@ Các tên, mã lỗi và cách lưu dữ liệu thông báo là đề xuất k�
 ### Kiểm chứng US-PAY-02
 
 Đã chạy PlantUML 1.2025.2 với `-charset UTF-8 -checkonly` và `-charset UTF-8 -tsvg` cho cả hai nguồn. Cả hai lệnh thành công và đã kiểm tra bố cục ảnh kết xuất.
+
+## US-PAY-01 – Hai sequence độc lập trong cùng file
+
+> Bổ sung: 12/11/2026 · Prompt: P-45 · AI: Codex / GPT-6.
+> Đầu vào: [SYS-US-01 v2](../../../analysis/payment-management/v2/sys-us-01-v2.md), mục 1.1 và mục 1.2 SYS-US-01b đã được người dùng xác nhận trong chat. Trạng thái: Design Pending Approval.
+
+Theo chỉ định của người dùng, [seq-us-01-v2.puml](diagrams/seq-us-01-v2.puml) chứa **hai khối `@startuml` độc lập**, không dùng nhánh lập/sửa hoặc nối luồng sửa vào sau khi lập. Khối lập giữ nguyên nội dung; khối sửa có actor, lifeline và số thứ tự riêng. Đây là ngoại lệ theo yêu cầu lưu cùng file; không tạo thêm bản nguồn `.puml` trùng nội dung.
+
+| Khối nguồn trong cùng file | Ảnh riêng | Phạm vi |
+|---|---|---|
+| `@startuml seq-us-01-v2` | [seq-us-01-v2.svg](diagrams/seq-us-01-v2.svg) | SYS-US-01 mục 1.1, lập mới; giữ nguyên khối nguồn đã có. |
+| `@startuml seq-us-01-update-v2` | [seq-us-01-update-v2.svg](diagrams/seq-us-01-update-v2.svg) | SYS-US-01b mục 1.2, chỉnh sửa bảng Draft đã lưu; không phụ thuộc việc thực hiện luồng lập. |
+
+### Đối chiếu SYS-US-01b với sequence chỉnh sửa
+
+| Bước/nhánh | Thể hiện trong khối chỉnh sửa |
+|---|---|
+| 1–3; A2; EC.1 | GetById đọc bảng, kiểm tra quyền NVKD phụ trách và Draft, hiển thị form; không bắt buộc là người tạo. Không tồn tại/sai quyền/trạng thái là A2; lỗi đọc là EC.1. |
+| 4 | Cho nhập kỳ thanh toán và ghi chú; hợp đồng/khách hàng, sản lượng, đơn giá, tiền chỉ đọc. |
+| A4.1 | ReloadSource đọc/tính theo kỳ đang chọn, chỉ cập nhật form. Loại trừ chính bảng và Cancelled khi tra trùng; không ghi nguồn hoặc lưu bảng trong thao tác này. |
+| 5; A5 | Kiểm tra field bắt buộc trước gửi Update; tô đỏ đúng field và quay bước 4; ghi chú trống hợp lệ. |
+| 6; A6; EC.1 | Đọc lại bảng/quyền/trạng thái. Đổi kỳ hoặc reloadSource thì dùng nguồn hiện tại để tính lại; chỉ sửa ghi chú thì giữ số liệu. Điều kiện không đạt về bước 4 hoặc kết thúc, lỗi kỹ thuật cho thử lại bước 6. |
+| 7; A7; E7.1 | Update có điều kiện ID/Draft/version và bảo vệ kỳ, cùng audit trước/sau. Xung đột quay bước 1 tải mới; lỗi ghi/audit chắc chắn chưa lưu rollback và quay bước 5. |
+| 8 | Trả dữ liệu đã commit, giữ cùng ID và trạng thái Draft; thông báo “Cập nhật bảng thanh toán thành công”. |
+| AC.1 | Đóng trước lưu: giữ bảng cũ, không Update, kết thúc. |
+| E7.2 | Chưa rõ commit hoặc mất phản hồi: chỉ xác minh/kết thúc; đã lưu trả đúng bảng/version của lần cập nhật để tới bước 8; chắc chắn chưa lưu mới quay bước 5. |
+
+### Tên và đề xuất kỹ thuật cần đồng bộ
+
+- GetById và Update dùng tên trong API v2 E6/E8; ReloadSource theo thao tác đã mô tả ở E8. E8 hiện chưa nhận `period` mới, còn thao tác tải nguồn chỉ trên form và xác minh lần update chưa có endpoint riêng. Sơ đồ dùng lời gọi luận lý, đánh dấu `period` và `operationId` là phần mở rộng đề xuất; không tuyên bố hợp đồng HTTP hiện tại đã hỗ trợ chúng. Lượt này không sửa API.
+- ReadAndCalculateDraftSources là nhóm tương tác dùng lại giữa A4.1 và bước 6: GetContract, FindOverlap, GetQuantities, GetActiveForContract, tính tiền theo quy tắc SYS. Các reader chỉ đọc, không tạo/sửa hợp đồng, bảng giá hoặc sản lượng.
+- IPaymentRepository.Update ghi trên bảng hiện có; expectedVersion và expectedStatus=Draft ngăn ghi đè. Đổi giữ chỗ kỳ cũ sang kỳ mới, dòng và audit phải cùng giao dịch; rollback giữ nguyên kỳ/số liệu cũ. Ràng buộc không trùng loại trừ chính bảng và các bảng Cancelled. Cơ chế cụ thể phải đồng bộ với thiết kế dữ liệu.
+- `operationId` do UI cấp trước khi gửi lần lưu, để vẫn tra được khi mất toàn bộ phản hồi. Update ghi nhận kết quả gắn đúng thao tác; VerifySaveOutcome/FindSaveOutcome trong khối sửa nhận sheetId và operationId. Chỉ trả chắc chắn chưa commit khi có bằng chứng; truy vấn rỗng hoặc lỗi xác minh vẫn là chưa rõ. Đây là đề xuất cho E7.2; không dùng chỉ version hiện tại để gán kết quả cho một lần update.
+- Begin trả kết quả mở; các thao tác ghi tiếp chỉ chạy khi thao tác trước OK. Chỉ rollback khi giao dịch còn mở và kết quả được xác định; không tuyên bố rollback được một giao dịch có thể đã commit. Không tự thêm SLA sửa Draft hoặc quy tắc VAT/làm tròn chưa có căn cứ mới.
+
+### Kiểm chứng US-PAY-01b
+
+Lệnh và kết quả cuối lượt tại P-45 trong [nhật ký](../../../workflow/prompt-log.md). Kiểm tra hai khối độc lập, giữ nguyên khối lập, đủ nhãn 1–8 và A2/A4.1/A5/A6/A7/AC.1/EC.1/E7.1/E7.2; chạy PlantUML `-checkonly`, `-tsvg` cho file chung và xem PNG sơ đồ chỉnh sửa. Kiểm tra cú pháp/render không thay thế kiểm thử API/giao dịch hoặc phê duyệt thiết kế.

@@ -1051,3 +1051,24 @@ Prompt nguyên văn:
 Prompt nguyên văn:
 
     luồng thay thế và luồng lỗi bỏ phần tại bước ...
+
+### P-45 – Sequence độc lập cho chỉnh sửa Draft SYS-US-01b v2
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / công cụ / vai trò | 12/11/2026 / Codex, GPT-6 / design, sequence-diagram. |
+| Nguồn | SYS-US-01b, mục 1.2 của sys-us-01-v2.md và chỉ định của người dùng: diagram chỉnh sửa độc lập, lưu chung file sequence US-01. |
+| Đầu ra | seq-us-01-v2.puml có hai khối PlantUML độc lập; khối mới seq-us-01-update-v2 và ảnh SVG tương ứng. Bổ sung danh mục và truy vết trong 03-detailed-design-v2.md. Giữ nguyên đặc tả và toàn bộ khối sequence lập bảng. |
+| Thiết kế | Mở Draft, kiểm tra quyền/trạng thái, sửa kỳ hoặc ghi chú, tùy chọn tải lại nguồn, kiểm tra và lưu cùng bảng Draft với audit trước/sau. Bao phủ 8 bước và 9 nhánh A/E, đóng biểu mẫu, xung đột phiên bản/kỳ, lỗi đọc/lưu và xác minh kết quả lưu chưa rõ. |
+| Đề xuất kỹ thuật / giới hạn | expectedVersion, operationId và giao dịch cập nhật/audit là giải pháp thiết kế. API E8 cần đồng bộ trường kỳ được sửa và operationId; thao tác tải lại/xác minh đang ở mức lời gọi logic. Đã ghi rõ trong diagram và danh mục; không sửa API trong lượt này. Design Pending Approval. |
+| Kiểm chứng | PlantUML 1.2024.3 / OpenJDK 17.0.21: checkonly và render SVG/PNG thành công; đã xem PNG của diagram chỉnh sửa. Kiểm tra hai khối độc lập, đủ bước/nhánh, khối lập bảng và SVG lập bảng giữ nguyên, SHA256 đặc tả không đổi; liên kết danh mục và git diff --check đạt. Không kiểm thử HTTP/DB hoặc đo hiệu năng. |
+| Kiểm tra workspace | verify_agent_config.py còn 2 lỗi có trước: liên kết nhật ký cũ trỏ tới file không còn và tên các sequence tách hậu tố số chưa được bộ kiểm tra chấp nhận. Không sửa tài liệu ngoài phạm vi để xử lý các lỗi này. Không commit/push. |
+
+Prompt nguyên văn (JSON; ký tự đóng liên kết được escape để bộ kiểm tra không coi nội dung prompt là liên kết tài liệu):
+
+```json
+[
+  "đặc tả chỉnh sửa bảng thanh toán đã ổn, hãy thiết kế sequence diagram, lưu vào [seq-us-01-v2.puml\u005d(docs/design/payment-management/v2/diagrams/seq-us-01-v2.puml) ",
+  "tiếp tục. lưu ý: lập 1 seq diagram riêng, không phải rẻ nhánh từ seq lập"
+]
+```
