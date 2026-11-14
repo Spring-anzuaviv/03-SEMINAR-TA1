@@ -1,6 +1,6 @@
 @startuml erd-v2
 title ERD (mô hình dữ liệu) – Bảng thanh toán, dùng chung US-PAY-01..05 – v2
-' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (gồm seq-us-01-update-v2, seq-us-02-1/02-2-v2), 01–04-v2, 05-data-design-v2.md, src/Qtkd.Api (AS-IS) | Prompt: P-37, P-38, P-47
+' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (gồm seq-us-01-update-v2, seq-us-02-1/02-2-v2), 01–04-v2, 05-data-design-v2.md, src/Qtkd.Api (AS-IS) | Prompt: P-37, P-38, P-47, P-51
 ' Mục đích: bảng, cột chính, khóa và quan hệ của toàn module. Đây là ERD, không phải UML class diagram.
 ' Phạm vi: US-PAY-01..05 (SYS-US-01, 01b, 02, 02b, 03, 03b, 04, 04b, 05); PAY-01..08; NFR-PAY-01
 ' OQ: OQ-01, OQ-D-02 (claim kỳ); OQ-03, OQ-US04-01/02 (hồ sơ điều chỉnh); OQ-US03-03 (tiền)
@@ -34,8 +34,6 @@ entity "payment_sheets" as S {
   * created_at : TIMESTAMPTZ
   updated_by / updated_at
   * submission_no : INT <<lần trình hiện tại>>
-  decided_by / decided_at
-  rejection_reason : TEXT
   cancel_reason : TEXT
   cancelled_by / cancelled_at
   * version : INT
@@ -78,6 +76,9 @@ entity "payment_submissions" as SB {
   * submitted_by : VARCHAR(50)
   * submitted_at : TIMESTAMPTZ
   recipients_resolved_at : TIMESTAMPTZ
+  decision : VARCHAR(10) <<Approved|Rejected>>
+  decided_by / decided_at
+  rejection_reason : TEXT
 }
 
 entity "payment_notifications" as N {
@@ -168,6 +169,8 @@ note bottom of SB
   Lưu vai trò, nội dung và danh sách theo lần trình
   (PrepareSubmission / EnsureRecipients – seq-us-02-1/02-2-v2).
   recipients_resolved_at NULL = chưa có người nhận (A8).
+  decision NULL = đang chờ duyệt; kết quả và lý do từ chối
+  lưu theo từng lần trình (ck_submission_decision, DD-20).
 end note
 
 note bottom of C

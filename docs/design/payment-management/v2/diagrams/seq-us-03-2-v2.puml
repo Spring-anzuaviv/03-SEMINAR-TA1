@@ -1,6 +1,6 @@
 @startuml seq-us-03-2-v2
 title Chỉnh sửa bảng thanh toán bị từ chối (SYS-US-03b) – v2
-' Phiên bản: v2 | Ngày: 11/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-33 (tách từ P-32)
+' Phiên bản: v2 | Ngày: 11/11/2026, sửa 14/11/2026 | AI: Claude Code / Claude Opus 5.5 | Prompt: P-33 (tách từ P-32), P-51
 ' Đầu vào: docs/analysis/payment-management/v2/sys-us-03-v2.md (cùng version) – mục 1.2 SYS-US-03b.
 ' Mục đích: reopen (Rejected -> Draft) khi NVKD bấm "Chỉnh sửa"; giữ lý do từ chối để tham chiếu.
 ' Phạm vi: US-PAY-03 | PAY-08 (bảng Rejected sửa rồi trình lại) | NFR-PAY-01 (giao dịch trạng thái + audit).
@@ -57,7 +57,7 @@ else NVKD
     else status = Rejected
       group Transaction reopen – NFR-PAY-01 [3]
         S -> UOW : Begin()
-        S -> R : Transition(id, Rejected -> Draft, expectedVersion)\n(giữ rejectReason để tham chiếu)
+        S -> R : Transition(id, Rejected -> Draft, expectedVersion)\n(không sửa payment_submissions: kết quả Rejected\nvà lý do của lần trình hiện tại giữ nguyên)
         R -> DB : UPDATE … WHERE status='Rejected' AND version=:expectedVersion
         DB --> R : rowsAffected / lỗi
         R --> S : changed / conflict / error
@@ -84,7 +84,7 @@ else NVKD
               S --> API : PERSISTENCE_ERROR
               API --> K : 500 – báo lỗi [3a]
             else committed
-              S --> API : sheet(status = Draft, rejectReason)
+              S --> API : sheet(status = Draft, rejectionReason)
               API --> K : 200 – mở biểu mẫu sửa bảng Draft [4]
               note right of K
                 Sửa theo SYS-US-01 (seq-us-01-v2);

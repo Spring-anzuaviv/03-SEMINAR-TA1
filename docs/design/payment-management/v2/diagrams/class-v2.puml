@@ -1,6 +1,6 @@
 @startuml class-v2
 title Class – Bảng thanh toán – v2
-' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (8 sơ đồ, gồm seq-us-01-update-v2), 02/03/04/05-v2 | Prompt: P-49
+' Phiên bản: v2 | Đầu vào: sys-us-01..05-v2.md, seq-us-*-v2.puml (8 sơ đồ, gồm seq-us-01-update-v2), 02/03/04/05-v2 | Prompt: P-49, P-51
 ' Mục đích: lớp miền, service, interface và quan hệ của module Bảng thanh toán sau review
 ' Phạm vi: US-PAY-01..05 (SYS-US-01, 01b, 02, 02b, 03, 03b, 04, 04b, 05); PAY-01..08; NFR-PAY-01
 ' Nguồn: TA-SPEC §1–6; TA-PDF tr.1–3
@@ -53,6 +53,10 @@ package "PaymentManagement.Domain" {
       Pending
       Sent
       Failed
+    }
+    enum SubmissionDecision {
+      Approved
+      Rejected
     }
     enum AdjustmentStatus <<Blocked by OQ-03>> {
       Pending
@@ -107,9 +111,6 @@ package "PaymentManagement.Domain" {
     - UpdatedBy : string?
     - UpdatedAt : DateTime?
     - SubmissionNo : int
-    - DecidedBy : string?
-    - DecidedAt : DateTime?
-    - RejectionReason : string?
     - CancelReason : string?
     - CancelledBy : string?
     - CancelledAt : DateTime?
@@ -119,7 +120,8 @@ package "PaymentManagement.Domain" {
   }
   note right of PaymentSheet
     CreatedBy = người tạo Draft, không đổi qua update/reopen (PAY-07).
-    RejectionReason giữ lại sau reopen (PAY-08; SYS-US-03b).
+    Kết quả duyệt/từ chối nằm ở PaymentSubmission của lần trình
+    hiện tại; lý do vẫn đọc được sau reopen (PAY-08; SYS-US-03b; DD-20).
     Sửa trên Draft: chỉ Period và Note (SYS-US-01b, P-42).
     RequiredApproverRole(): tổng đã lưu gồm GTGT,
     ≥ 500.000.000 đ → GDKD, dưới mức đó → KTT;
@@ -162,12 +164,18 @@ package "PaymentManagement.Domain" {
     - SubmittedBy : string
     - SubmittedAt : DateTime
     - RecipientsResolvedAt : DateTime?
+    - Decision : SubmissionDecision?
+    - DecidedBy : string?
+    - DecidedAt : DateTime?
+    - RejectionReason : string?
     + HasRecipients() : bool
   }
   note bottom of PaymentSubmission
     Một bản ghi mỗi lần trình (PrepareSubmission).
     RecipientsResolvedAt = null: chưa có
     người nhận (SYS-US-02 A8).
+    Decision = null: đang chờ duyệt; mỗi lần trình
+    tối đa một kết quả, Rejected phải có lý do (DD-20).
   end note
 
   class PaymentNotification {
@@ -375,6 +383,7 @@ package "PaymentManagement.Application" {
     + Create(operationId : Guid, sheet : PaymentSheet) : WriteResult
     + Update(sheetId : Guid, candidate : PaymentSheet, expectedStatus : PaymentSheetStatus, expectedVersion : int, operationId : Guid) : WriteResult
     + Transition(id : Guid, from : PaymentSheetStatus, to : PaymentSheetStatus, expectedVersion : int, reason : string?) : WriteResult
+    + RecordDecision(id : Guid, submissionNo : int, decision : SubmissionDecision, decidedBy : string, decidedAt : DateTime, rejectionReason : string?) : WriteResult
     + FindSaveOutcome(operationId : Guid) : SaveOutcome
     + FindSaveOutcome(operationId : Guid, sheetId : Guid) : SaveOutcome
   }

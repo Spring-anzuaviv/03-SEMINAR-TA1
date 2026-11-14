@@ -1180,3 +1180,31 @@ sửa thẳng trong đây bằng màu đỏ
 ```text
 giữ cấu trúc hiện tại
 ```
+
+### P-51 – Lưu kết quả duyệt/từ chối theo lần trình (US-PAY-03)
+
+| Trường | Giá trị |
+|---|---|
+| Ngày / người chạy | 14/11/2026 / Đan Anh qua Claude Code |
+| Công cụ / model | Claude Code / Claude Opus 5.5; OpenJDK 17.0.15 (JRE kèm Tableau Public); PlantUML 1.2024.3 (jar jebbs.plantuml 2.18.1); Python 3 |
+| Vai trò / skill / version | design / data-design, sequence-diagram, naming-versioning / v2 |
+| Nguồn | sys-us-01-v2 §1.2 (SYS-US-01b), sys-us-02-v2, sys-us-03-v2 (SYS-US-03, 03b); seq-us-03-1/03-2-v2; 04-v2 §1–4, §6; 05-v2 §2–16; 06-v2; class-v2, erd-v2 |
+| Bối cảnh | Người dùng hỏi một bảng có sửa được nhiều lần không, rồi hỏi vì sao không lưu kết quả duyệt theo lần chỉnh sửa hoặc lần trình. AI trả lời: không gắn với lần sửa (Draft chưa có người duyệt, một lần trình ứng với nhiều lần sửa), nên gắn với lần trình; v2 trước đó chỉ giữ kết quả gần nhất trên `payment_sheets`, lịch sử chỉ còn trong audit. Người dùng đồng ý sửa theo đề xuất cho US-PAY-03 |
+| Đầu ra | 05-v2: `payment_submissions` thêm `decision`, `decided_by`, `decided_at`, `rejection_reason` + `ck_submission_decision`; bỏ ba cột khỏi `payment_sheets` và `ck_sheet_reject`; cập nhật §2, §5, §9, §12, §14.3 (DD-20), §14.4, §14.5, §15, Thay đổi #9. 04-v2: `rejectionReason` lấy từ lần trình hiện tại, thêm `SubmissionDecisionDto` và `submissions` trong E6, sửa E10/E11/E16, §6, Thay đổi. seq-us-03-1-v2: `RecordDecision` trong giao dịch duyệt/từ chối, đổi `rejectReason` → `rejectionReason`. seq-us-03-2-v2: reopen không sửa lần trình. class-v2: thuộc tính kết quả chuyển sang `PaymentSubmission`, enum `SubmissionDecision`, `IPaymentRepository.RecordDecision`. erd-v2: cột chuyển sang `payment_submissions`. 06-v2: dòng Approved/Rejected, 01§5-#6, đóng lệch tên §4.3 #1, Thay đổi #5. Kết xuất lại 4 SVG |
+| Kiểm chứng | Script Python thay thế có kiểm tra mỗi chỗ khớp đúng 1 lần, chạy thử (dry-run) rồi mới ghi. PlantUML `-charset UTF-8 -checkonly` 4 file → exit 0; `-tsvg` → exit 0; không SVG nào chứa “Syntax Error”; SVG có chữ `RecordDecision`/`SubmissionDecision`/`decision`. `git diff --check` exit 0. `scripts/verify_agent_config.py` FAIL ở mục naming do tên `seq-us-NN-1/2-v2` có từ trước, không do lần sửa này. Chưa xem ảnh kết xuất bằng mắt |
+| Phần AI / nhóm | Claude đề xuất và sửa; người dùng chọn phương án; chưa commit |
+| Giới hạn | Design Pending Approval. Không sửa sys-us-03-v2 (vai trò BA; câu “lý do được lưu cùng bảng” vẫn đúng về nghiệp vụ). 03-detailed-design-v2 chưa có mục US-PAY-03 nên không sửa. Chưa có 07-design-decisions-v2.md; DD-20 ghi tạm ở 05 §14.3. Ràng buộc trạng thái bảng ↔ kết quả lần trình do service giữ, CSDL không ép |
+
+Prompt nguyên văn:
+
+```text
+1 bảng thanh toán nhiều lần chỉnh sửa?
+```
+
+```text
+vậy sao không lưu kết quả duyệt vào lần chỉnh sửa hoặc lần trình duyệt
+```
+
+```text
+ừ, sửa theo đề xuất cho US-PAY-03
+```
